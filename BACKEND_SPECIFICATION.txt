@@ -1,0 +1,745 @@
+# EcoTrack Backend API Specification
+# Complete Development Guide for Express.js + MongoDB + Firebase Auth
+
+## PROJECT OVERVIEW
+Build REST API backend for EcoTrack - a sustainability platform where users join challenges, attend events, share tips, and track environmental impact.
+
+## TECH STACK
+- Backend: Express.js (MVC pattern)
+- Database: MongoDB Atlas (native driver, NO Mongoose)
+- Authentication: Firebase Auth
+- File Storage: Cloudinary/AWS S3
+- Deployment: Vercel/Railway compatible
+
+================================================================================
+## DATABASE SCHEMAS
+================================================================================
+
+### 1. CHALLENGES COLLECTION
+```javascript
+{
+  "_id": ObjectId,
+  "title": "Plastic-Free July",
+  "category": "Waste Reduction",           // Dropdown: Energy Conservation, Water Conservation, Sustainable Transport, Green Living, Waste Reduction
+  "description": "Avoid single-use plastic for one month",
+  "duration": 30,                         // Duration in days
+  "target": "Reduce plastic waste",       // Challenge goal
+  "participants": 0,                      // Number of users joined
+  "impactMetric": "kg plastic saved",     // What's being measured
+  "createdBy": "admin@ecotrack.com",      // Creator email/userId
+  "startDate": "2024-07-01",             // ISO date string
+  "endDate": "2024-07-31",               // ISO date string
+  "imageUrl": "https://example.com/image.jpg",
+  "createdAt": ISODate(),
+  "updatedAt": ISODate(),
+  "isActive": true,                       // Published status
+  "difficulty": "Beginner",              // Beginner, Intermediate, Advanced
+  "instructions": [                       // Step-by-step guide
+    "Step 1: Carry reusable bags",
+    "Step 2: Use glass containers"
+  ],
+  "tips": [                              // Helpful tips
+    "Start with one room at a time",
+    "Find plastic-free alternatives"
+  ]
+}
+```
+
+### 2. USER_CHALLENGES COLLECTION (User participation tracking)
+```javascript
+{
+  "_id": ObjectId,
+  "userId": "userId",                     // Firebase UID or email
+  "challengeId": ObjectId,               // Reference to challenge
+  "status": "Not Started",               // "Not Started", "Ongoing", "Finished", "Abandoned"
+  "progress": 0,                         // 0-100 percentage
+  "joinDate": ISODate(),
+  "completedDate": null,                 // Date when finished (if completed)
+  "impactAchieved": 0,                   // Personal impact value
+  "notes": "Personal progress notes",     // User's notes
+  "dailyLogs": [                         // Optional daily tracking
+    {
+      "date": "2024-07-01",
+      "completed": true,
+      "note": "Used reusable bag at store"
+    }
+  ]
+}
+```
+
+### 3. TIPS COLLECTION
+```javascript
+{
+  "_id": ObjectId,
+  "title": "How to compost at home",
+  "content": "Simple steps for home composting...",
+  "category": "Waste Management",         // Same categories as challenges
+  "author": "user@example.com",          // User email/ID
+  "authorName": "Green User",
+  "authorAvatar": "https://avatar.url",  // User profile picture
+  "upvotes": 25,
+  "downvotes": 2,                        // Track negative votes
+  "imageUrl": "https://tip-image.jpg",   // Optional tip image
+  "isVerified": false,                   // Moderated content
+  "createdAt": "2024-01-20T10:30:00Z",
+  "updatedAt": "2024-01-20T10:30:00Z",
+  "votes": [                             // Track who voted
+    {
+      "userId": "user123",
+      "voteType": "upvote",              // "upvote" or "downvote"
+      "votedAt": ISODate()
+    }
+  ]
+}
+```
+
+### 4. EVENTS COLLECTION
+```javascript
+{
+  "_id": ObjectId,
+  "title": "Community Clean-up Day",
+  "description": "Join neighborhood clean-up event",
+  "detailedDescription": "Full event description with agenda...",
+  "date": "2024-02-15T09:00:00Z",
+  "endDate": "2024-02-15T15:00:00Z",     // Event end time
+  "location": {
+    "address": "Central Park",
+    "city": "New York",
+    "state": "NY",
+    "zipCode": "10001",
+    "coordinates": {                      // For map integration
+      "lat": 40.7829,
+      "lng": -73.9654
+    }
+  },
+  "organizer": "user@example.com",       // Organizer email/ID
+  "organizerName": "Green Organization",
+  "maxParticipants": 50,
+  "currentParticipants": 35,
+  "imageUrl": "https://event-image.jpg",
+  "category": "Community",               // Event category
+  "requirements": "Bring gloves and water bottle",
+  "benefits": "Community service hours",
+  "status": "upcoming",                  // "upcoming", "ongoing", "completed", "cancelled"
+  "createdAt": ISODate(),
+  "updatedAt": ISODate(),
+  "registrations": [                     // Track registrations
+    {
+      "userId": "user123",
+      "registeredAt": ISODate(),
+      "attended": null                   // true/false after event
+    }
+  ]
+}
+```
+
+### 5. USERS COLLECTION (Firebase Auth + Profile Data)
+```javascript
+{
+  "_id": ObjectId,
+  "firebaseUid": "firebase_user_id",     // Firebase Auth UID (unique)
+  "email": "user@example.com",
+  "displayName": "John Doe",
+  "photoURL": "https://profile-pic.jpg",
+  "bio": "Passionate about sustainability",
+  "location": "San Francisco, CA",
+  "joinedAt": ISODate(),
+  "lastActive": ISODate(),
+  "preferences": {
+    "notifications": true,
+    "newsletter": true,
+    "privacy": "public"                  // "public" or "private"
+  },
+  "stats": {
+    "challengesJoined": 5,
+    "challengesCompleted": 3,
+    "eventsAttended": 2,
+    "tipsShared": 8,
+    "totalImpactPoints": 150
+  },
+  "role": "user",                        // "user", "admin", "moderator"
+  "isActive": true
+}
+```
+
+### 6. ACTIVITIES COLLECTION (Activity Feed)
+```javascript
+{
+  "_id": ObjectId,
+  "userId": "user123",
+  "activityType": "challenge_joined",     // "challenge_joined", "challenge_completed", "tip_shared", "event_registered"
+  "relatedId": ObjectId,                 // Challenge/Event/Tip ID
+  "metadata": {                          // Activity-specific data
+    "challengeTitle": "Plastic-Free July",
+    "impactValue": 25
+  },
+  "isPublic": true,                      // Show in community feed
+  "createdAt": ISODate()
+}
+```
+
+### 7. COMMUNITY_STATS COLLECTION (Aggregated Statistics)
+```javascript
+{
+  "_id": ObjectId,
+  "type": "global",                      // "global", "monthly", "weekly"
+  "period": "2024-11",                   // For time-based stats
+  "stats": {
+    "totalUsers": 1250,
+    "activeChallenges": 15,
+    "totalParticipants": 3420,
+    "co2SavedKg": 182345,
+    "waterSavedLiters": 95000,
+    "wasteReducedKg": 8500,
+    "energySavedKwh": 12000
+  },
+  "lastUpdated": ISODate()
+}
+```
+
+================================================================================
+## API ENDPOINTS SPECIFICATION
+================================================================================
+
+### AUTHENTICATION ENDPOINTS
+```
+POST /api/auth/register          # Create user account
+POST /api/auth/login             # User login
+GET  /api/auth/me                # Get current user data
+POST /api/auth/logout            # User logout
+POST /api/auth/refresh           # Refresh auth token
+```
+
+### CHALLENGES API
+```
+GET    /api/challenges                    # List all challenges (supports filters)
+       Query Params: 
+       - category: string (filter by category)
+       - status: active|completed|upcoming
+       - page: number (pagination)
+       - limit: number (items per page)
+       - search: string (search in title/description)
+
+GET    /api/challenges/:id                # Get challenge details
+POST   /api/challenges                    # Create new challenge (auth required)
+PATCH  /api/challenges/:id                # Update challenge (owner/admin only)
+DELETE /api/challenges/:id                # Delete challenge (owner/admin only)
+POST   /api/challenges/join/:id           # Join challenge (auth required)
+                                         # - Increments participants count
+                                         # - Creates UserChallenge record
+POST   /api/challenges/leave/:id          # Leave challenge (auth required)
+PATCH  /api/challenges/:id/progress       # Update progress (auth required)
+POST   /api/challenges/:id/complete       # Mark as completed (auth required)
+GET    /api/challenges/:id/participants   # Get challenge participants
+```
+
+### TIPS API
+```
+GET    /api/tips                         # List tips with pagination
+       Query Params:
+       - category: string
+       - page: number
+       - limit: number
+       - sort: newest|oldest|popular
+
+GET    /api/tips/:id                     # Get tip details
+POST   /api/tips                         # Create tip (auth required)
+PATCH  /api/tips/:id                     # Update tip (owner only)
+DELETE /api/tips/:id                     # Delete tip (owner/admin)
+POST   /api/tips/:id/vote                # Vote on tip (auth required)
+                                        # Body: { voteType: "upvote|downvote" }
+DELETE /api/tips/:id/vote               # Remove vote (auth required)
+```
+
+### EVENTS API
+```
+GET    /api/events                      # List events
+       Query Params:
+       - status: upcoming|completed
+       - location: string
+       - date: YYYY-MM-DD
+       - page: number
+       - limit: number
+
+GET    /api/events/:id                  # Get event details
+POST   /api/events                      # Create event (auth required)
+PATCH  /api/events/:id                  # Update event (organizer/admin)
+DELETE /api/events/:id                  # Delete event (organizer/admin)
+POST   /api/events/:id/register         # Register for event (auth required)
+DELETE /api/events/:id/register         # Unregister from event (auth required)
+PATCH  /api/events/:id/attendance       # Mark attendance (organizer/admin)
+```
+
+### USER PROFILE API
+```
+GET    /api/users/profile               # Get current user profile
+PATCH  /api/users/profile               # Update profile
+GET    /api/users/:id                   # Get public user profile
+GET    /api/users/:id/activities        # Get user's public activities
+GET    /api/users/:id/challenges        # Get user's challenges
+GET    /api/users/:id/stats             # Get user statistics
+```
+
+### STATISTICS API
+```
+GET /api/stats/community                # Global community stats
+GET /api/stats/user                     # Current user stats (auth required)
+GET /api/stats/challenges/:id           # Challenge-specific stats
+GET /api/stats/impact                   # Environmental impact metrics
+```
+
+### FILE UPLOAD API
+```
+POST /api/upload/image                  # Upload image (auth required)
+                                       # Body: multipart/form-data with 'image' field
+                                       # Returns: { imageUrl: "https://..." }
+```
+
+### ADMIN API (Admin role required)
+```
+GET    /api/admin/users                 # List all users
+PATCH  /api/admin/users/:id/role        # Update user role
+GET    /api/admin/content/pending       # Pending content for moderation
+PATCH  /api/admin/content/:id/approve   # Approve content
+DELETE /api/admin/content/:id           # Delete content
+GET    /api/admin/analytics             # Admin dashboard analytics
+```
+
+================================================================================
+## AUTHENTICATION IMPLEMENTATION
+================================================================================
+
+### Firebase Auth Integration Steps:
+
+1. **Setup Firebase Admin SDK**
+```javascript
+// config/firebase.js
+const admin = require('firebase-admin');
+
+admin.initializeApp({
+  credential: admin.credential.cert({
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+  }),
+});
+
+module.exports = admin;
+```
+
+2. **Auth Middleware**
+```javascript
+// middleware/auth.js
+const admin = require('../config/firebase');
+
+const authenticateToken = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+    
+    if (!token) {
+      return res.status(401).json({ 
+        success: false, 
+        error: { message: 'Access token required' } 
+      });
+    }
+
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    req.user = decodedToken;
+    next();
+  } catch (error) {
+    res.status(403).json({ 
+      success: false, 
+      error: { message: 'Invalid or expired token' } 
+    });
+  }
+};
+
+module.exports = { authenticateToken };
+```
+
+3. **User Creation Flow**
+```javascript
+// controllers/authController.js
+const createOrGetUser = async (req, res) => {
+  try {
+    const { uid, email, displayName, photoURL } = req.user;
+    
+    // Check if user exists in MongoDB
+    let user = await db.collection('users').findOne({ firebaseUid: uid });
+    
+    if (!user) {
+      // Create new user record
+      user = {
+        firebaseUid: uid,
+        email,
+        displayName,
+        photoURL,
+        joinedAt: new Date(),
+        stats: {
+          challengesJoined: 0,
+          challengesCompleted: 0,
+          eventsAttended: 0,
+          tipsShared: 0,
+          totalImpactPoints: 0
+        },
+        role: 'user',
+        isActive: true
+      };
+      
+      await db.collection('users').insertOne(user);
+    }
+    
+    res.json({ success: true, data: { user } });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: { message: 'Server error' } 
+    });
+  }
+};
+```
+
+================================================================================
+## API RESPONSE FORMAT
+================================================================================
+
+### Success Response Structure:
+```javascript
+{
+  "success": true,
+  "data": {}, // Response data
+  "message": "Optional success message",
+  "pagination": {  // For paginated responses only
+    "page": 1,
+    "limit": 20,
+    "total": 100,
+    "totalPages": 5,
+    "hasNext": true,
+    "hasPrev": false
+  }
+}
+```
+
+### Error Response Structure:
+```javascript
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "User-friendly error message",
+    "details": {}, // Detailed error info for debugging
+    "field": "email" // For validation errors
+  }
+}
+```
+
+================================================================================
+## VALIDATION REQUIREMENTS
+================================================================================
+
+### Challenge Creation/Update Validation:
+- title: required, 3-100 characters
+- category: required, must be valid category
+- description: required, 10-500 characters
+- duration: required, positive integer
+- startDate: required, valid date, not in past
+- endDate: required, valid date, after startDate
+- imageUrl: optional, valid URL
+
+### Tip Creation Validation:
+- title: required, 5-100 characters
+- content: required, 20-1000 characters
+- category: required, valid category
+- imageUrl: optional, valid URL
+
+### Event Creation Validation:
+- title: required, 5-100 characters
+- description: required, 20-500 characters
+- date: required, valid future date
+- location: required object with address
+- maxParticipants: required, positive integer
+- organizerName: required, 2-50 characters
+
+================================================================================
+## DATABASE OPERATIONS EXAMPLES
+================================================================================
+
+### Challenge Join Operation:
+```javascript
+// controllers/challengeController.js
+const joinChallenge = async (req, res) => {
+  const session = client.startSession();
+  
+  try {
+    await session.withTransaction(async () => {
+      const { id } = req.params;
+      const userId = req.user.uid;
+      
+      // Check if already joined
+      const existingParticipation = await db.collection('userChallenges')
+        .findOne({ userId, challengeId: ObjectId(id) });
+      
+      if (existingParticipation) {
+        throw new Error('Already joined this challenge');
+      }
+      
+      // Create participation record
+      await db.collection('userChallenges').insertOne({
+        userId,
+        challengeId: ObjectId(id),
+        status: 'Not Started',
+        progress: 0,
+        joinDate: new Date()
+      });
+      
+      // Increment participants count
+      await db.collection('challenges').updateOne(
+        { _id: ObjectId(id) },
+        { $inc: { participants: 1 } }
+      );
+      
+      // Update user stats
+      await db.collection('users').updateOne(
+        { firebaseUid: userId },
+        { $inc: { 'stats.challengesJoined': 1 } }
+      );
+    });
+    
+    res.json({ success: true, message: 'Successfully joined challenge' });
+  } catch (error) {
+    res.status(400).json({ 
+      success: false, 
+      error: { message: error.message } 
+    });
+  } finally {
+    await session.endSession();
+  }
+};
+```
+
+### Tip Voting Operation:
+```javascript
+const voteTip = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { voteType } = req.body; // 'upvote' or 'downvote'
+    const userId = req.user.uid;
+    
+    // Remove existing vote
+    await db.collection('tips').updateOne(
+      { _id: ObjectId(id) },
+      { $pull: { votes: { userId } } }
+    );
+    
+    // Add new vote
+    const updateOp = {
+      $push: { votes: { userId, voteType, votedAt: new Date() } }
+    };
+    
+    if (voteType === 'upvote') {
+      updateOp.$inc = { upvotes: 1 };
+    } else {
+      updateOp.$inc = { downvotes: 1 };
+    }
+    
+    await db.collection('tips').updateOne(
+      { _id: ObjectId(id) },
+      updateOp
+    );
+    
+    res.json({ success: true, message: 'Vote recorded' });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: { message: 'Server error' } 
+    });
+  }
+};
+```
+
+================================================================================
+## AGGREGATION PIPELINES FOR STATISTICS
+================================================================================
+
+### Community Stats Aggregation:
+```javascript
+const getCommunityStats = async () => {
+  const pipeline = [
+    {
+      $group: {
+        _id: null,
+        totalUsers: { $sum: 1 },
+        activeChallenges: {
+          $sum: {
+            $cond: [
+              { $and: [
+                { $gte: ["$endDate", new Date()] },
+                { $eq: ["$isActive", true] }
+              ]},
+              1, 0
+            ]
+          }
+        },
+        totalParticipants: { $sum: "$participants" }
+      }
+    }
+  ];
+  
+  return await db.collection('challenges').aggregate(pipeline).toArray();
+};
+```
+
+### User Activity Feed:
+```javascript
+const getUserActivityFeed = async (userId, page = 1, limit = 20) => {
+  const pipeline = [
+    { $match: { userId, isPublic: true } },
+    { $sort: { createdAt: -1 } },
+    { $skip: (page - 1) * limit },
+    { $limit: limit },
+    {
+      $lookup: {
+        from: 'challenges',
+        localField: 'relatedId',
+        foreignField: '_id',
+        as: 'challengeInfo'
+      }
+    }
+  ];
+  
+  return await db.collection('activities').aggregate(pipeline).toArray();
+};
+```
+
+================================================================================
+## PROJECT STRUCTURE (MVC)
+================================================================================
+
+```
+src/
+├── config/
+│   ├── database.js          # MongoDB connection
+│   ├── firebase.js          # Firebase admin setup
+│   └── cloudinary.js       # Image upload config
+├── controllers/
+│   ├── authController.js    # Authentication logic
+│   ├── challengeController.js
+│   ├── tipController.js
+│   ├── eventController.js
+│   ├── userController.js
+│   ├── statsController.js
+│   └── uploadController.js
+├── middleware/
+│   ├── auth.js             # Firebase JWT verification
+│   ├── validation.js       # Request validation
+│   ├── rateLimit.js        # Rate limiting
+│   └── errorHandler.js     # Error handling
+├── routes/
+│   ├── auth.js
+│   ├── challenges.js
+│   ├── tips.js
+│   ├── events.js
+│   ├── users.js
+│   ├── stats.js
+│   └── upload.js
+├── utils/
+│   ├── validators.js       # Validation schemas
+│   ├── helpers.js         # Utility functions
+│   └── constants.js       # App constants
+├── app.js                 # Express app setup
+└── server.js             # Server entry point
+```
+
+================================================================================
+## ENVIRONMENT VARIABLES
+================================================================================
+
+```
+# Server Configuration
+PORT=5000
+NODE_ENV=production
+
+# MongoDB
+MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/ecotrack
+
+# Firebase Admin
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.com
+
+# Cloudinary (for image uploads)
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+
+# CORS
+FRONTEND_URL=https://ecotrack.vercel.app
+
+# Security
+JWT_SECRET=your-jwt-secret-for-additional-tokens
+```
+
+================================================================================
+## IMPLEMENTATION PRIORITY
+================================================================================
+
+### Phase 1 (MVP):
+1. Authentication setup (Firebase integration)
+2. User profile management
+3. Challenges CRUD + join functionality
+4. Basic statistics API
+
+### Phase 2:
+1. Tips system with voting
+2. Events system with registration
+3. File upload functionality
+4. User activity tracking
+
+### Phase 3:
+1. Admin panel APIs
+2. Advanced analytics
+3. Real-time features (WebSocket)
+4. Push notifications
+
+### Phase 4:
+1. Search and filtering optimization
+2. Recommendation engine
+3. Gamification features
+4. Social features (following, feeds)
+
+================================================================================
+## DEPLOYMENT NOTES
+================================================================================
+
+### Database Indexes (Create these for performance):
+```javascript
+// MongoDB indexes to create
+db.challenges.createIndex({ "category": 1, "isActive": 1 })
+db.challenges.createIndex({ "startDate": 1, "endDate": 1 })
+db.userChallenges.createIndex({ "userId": 1, "status": 1 })
+db.tips.createIndex({ "category": 1, "createdAt": -1 })
+db.events.createIndex({ "date": 1, "status": 1 })
+db.users.createIndex({ "firebaseUid": 1 }, { unique: true })
+```
+
+### Vercel Deployment Config (vercel.json):
+```json
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "server.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/server.js"
+    }
+  ]
+}
+```
+
+This specification provides everything needed to build a production-ready backend that integrates seamlessly with your React frontend. Start with Phase 1 features and gradually add more complexity.
