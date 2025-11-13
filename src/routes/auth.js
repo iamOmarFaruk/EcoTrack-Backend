@@ -3,6 +3,8 @@ const express = require('express');
 const router = express.Router();
 const { verifyIdToken, getUserByUid, setCustomUserClaims, listUsers } = require('../config/firebase');
 const { authenticateFirebaseToken, requireAdmin } = require('../middleware/firebaseAuth');
+const { userDb } = require('../models/userModel');
+const { validate } = require('../middleware/validation');
 
 /**
  * @route POST /api/auth/verify-token
@@ -35,6 +37,157 @@ router.post('/verify-token', async (req, res) => {
     res.status(401).json({
       success: false,
       error: { message: error.message }
+    });
+  }
+});
+
+/**
+ * @route POST /api/auth/register
+ * @desc Register a new user by saving Firebase user data to MongoDB
+ * @access Public (but requires valid Firebase token)
+ */
+router.post('/register', validate('registerUser'), async (req, res) => {
+  try {
+    const { idToken, displayName, photoURL, bio, location } = req.body;
+    
+    // Verify Firebase token and get user info
+    const decodedToken = await verifyIdToken(idToken);
+    const firebaseUid = decodedToken.uid;
+    const email = decodedToken.email;
+
+    // Get additional user information from Firebase Auth record
+    let firebaseUserRecord = null;
+    try {
+      firebaseUserRecord = await getUserByUid(firebaseUid);
+    } catch (error) {
+      console.warn('Could not fetch Firebase user record:', error.message);
+    }
+
+    // Extract user data with fallbacks for Google auth
+    const extractedDisplayName = displayName || 
+                                firebaseUserRecord?.displayName || 
+                                decodedToken.name || 
+                                email?.split('@')[0] || 
+                                'User';
+
+    const extractedPhotoURL = photoURL || 
+                             firebaseUserRecord?.photoURL || 
+                             decodedToken.picture || 
+                             null;
+
+    // Validate that we have a display name from somewhere
+    if (!extractedDisplayName || extractedDisplayName.trim().length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: { 
+          message: 'Display name is required and must be at least 2 characters',
+          code: 'MISSING_DISPLAY_NAME' 
+        }
+      });
+    }
+
+    // Check if user already exists in MongoDB
+    const existingUser = await userDb.findByFirebaseUid(firebaseUid);
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        error: { 
+          message: 'User already registered in database',
+          code: 'USER_ALREADY_EXISTS' 
+        },
+        data: { 
+          user: {
+            _id: existingUser._id,
+            displayName: existingUser.displayName,
+            email: existingUser.email,
+            photoURL: existingUser.photoURL,
+            joinedAt: existingUser.joinedAt
+          }
+        }
+      });
+    }
+
+    // Prepare user data for MongoDB with Google auth support
+    const newUserData = {
+      firebaseUid,
+      email,
+      displayName: extractedDisplayName.trim(),
+      photoURL: extractedPhotoURL,
+      bio: bio?.trim() || '',
+      location: location?.trim() || '',
+      preferences: {
+        privacy: 'public',
+        notifications: {
+          email: true,
+          push: true,
+          challenges: true,
+          tips: true,
+          events: true
+        }
+      },
+      role: 'user',
+      joinedAt: new Date(),
+      lastActive: new Date(),
+      stats: {
+        challengesJoined: 0,
+        challengesCompleted: 0,
+        totalImpactPoints: 0,
+        eventsAttended: 0,
+        tipsShared: 0,
+        streak: 0
+      }
+    };
+
+    // Create user in MongoDB
+    const createdUser = await userDb.create(newUserData);
+    console.log(`✅ User registered successfully: ${firebaseUid} - ${displayName}`);
+
+    // Remove sensitive information from response
+    const { firebaseUid: uid, ...userProfile } = createdUser;
+
+    res.status(201).json({
+      success: true,
+      message: 'User registered successfully',
+      data: {
+        user: userProfile,
+        firebase: {
+          uid: firebaseUid,
+          email,
+          emailVerified: decodedToken.email_verified
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Registration error:', error);
+    
+    if (error.message.includes('auth/id-token')) {
+      return res.status(401).json({
+        success: false,
+        error: { 
+          message: 'Invalid Firebase token',
+          code: 'INVALID_TOKEN'
+        }
+      });
+    }
+
+    if (error.message.includes('E11000')) {
+      return res.status(409).json({
+        success: false,
+        error: { 
+          message: 'User with this email already exists',
+          code: 'DUPLICATE_EMAIL'
+        }
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: { 
+        message: 'Failed to register user',
+        code: 'REGISTRATION_FAILED',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      }
     });
   }
 });

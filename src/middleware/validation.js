@@ -114,6 +114,27 @@ const schemas = {
     })
   }).min(1),
 
+  // User registration validation
+  registerUser: Joi.object({
+    idToken: Joi.string().required().messages({
+      'string.empty': 'Firebase ID token is required',
+      'any.required': 'Firebase ID token is required'
+    }),
+    displayName: Joi.string().min(2).max(50).optional().messages({
+      'string.min': 'Display name must be at least 2 characters long',
+      'string.max': 'Display name cannot exceed 50 characters'
+    }),
+    photoURL: Joi.string().uri().allow('', null).messages({
+      'string.uri': 'Photo URL must be a valid URL'
+    }),
+    bio: Joi.string().max(300).allow('').messages({
+      'string.max': 'Bio cannot exceed 300 characters'
+    }),
+    location: Joi.string().max(100).allow('').messages({
+      'string.max': 'Location cannot exceed 100 characters'
+    })
+  }),
+
   // Vote validation
   vote: Joi.object({
     voteType: Joi.string().valid('upvote', 'downvote').required()
