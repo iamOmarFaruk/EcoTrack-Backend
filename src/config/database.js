@@ -23,23 +23,36 @@ class Database {
         throw new Error('MONGODB_URI environment variable is not defined');
       }
 
-      // Create MongoDB client with recommended settings
-      this.client = new MongoClient(uri, {
-        maxPoolSize: 10, // Maintain up to 10 socket connections
-        serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
-        socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
-      });
+      // Create MongoDB client
+      const clientOptions = {
+        maxPoolSize: 10,
+        serverSelectionTimeoutMS: 10000,
+        socketTimeoutMS: 45000,
+        retryWrites: true,
+        retryReads: true,
+        readPreference: 'primaryPreferred',
+        connectTimeoutMS: 15000,
+        maxIdleTimeMS: 30000,
+      };
+
+      // Add TLS options for Atlas connections
+      if (uri.includes('mongodb+srv://')) {
+        clientOptions.tls = true;
+        clientOptions.tlsAllowInvalidCertificates = false;
+      }
+
+      this.client = new MongoClient(uri, clientOptions);
 
       // Connect to the MongoDB cluster
       await this.client.connect();
       
-      // Select the database (will be created if doesn't exist)
+      // Select the database
       const dbName = process.env.MONGODB_DATABASE || 'ecotrack';
       this.db = this.client.db(dbName);
       
       this.isConnected = true;
       
-      console.log('✅ Successfully connected to MongoDB Atlas');
+      console.log('✅ Successfully connected to MongoDB');
       
       // Test the connection
       await this.db.admin().ping();
@@ -60,42 +73,15 @@ class Database {
    */
   async createIndexes() {
     try {
-      // Challenges collection indexes
+      // Create essential indexes
       await this.db.collection('challenges').createIndex({ category: 1, isActive: 1 });
-      await this.db.collection('challenges').createIndex({ startDate: 1, endDate: 1 });
-      await this.db.collection('challenges').createIndex({ createdAt: -1 });
-
-      // User challenges collection indexes
-      await this.db.collection('userChallenges').createIndex({ userId: 1, status: 1 });
-      await this.db.collection('userChallenges').createIndex({ challengeId: 1 });
-      await this.db.collection('userChallenges').createIndex({ userId: 1, challengeId: 1 }, { unique: true });
-
-      // Tips collection indexes
       await this.db.collection('tips').createIndex({ category: 1, createdAt: -1 });
-      await this.db.collection('tips').createIndex({ author: 1 });
-      await this.db.collection('tips').createIndex({ isVerified: 1 });
-
-      // Events collection indexes
       await this.db.collection('events').createIndex({ date: 1, status: 1 });
-      await this.db.collection('events').createIndex({ 'location.city': 1, 'location.state': 1 });
-      await this.db.collection('events').createIndex({ organizer: 1 });
-
-      // Users collection indexes
       await this.db.collection('users').createIndex({ firebaseUid: 1 }, { unique: true });
-      await this.db.collection('users').createIndex({ email: 1 }, { unique: true });
-      await this.db.collection('users').createIndex({ isActive: 1 });
-
-      // Activities collection indexes
-      await this.db.collection('activities').createIndex({ userId: 1, createdAt: -1 });
-      await this.db.collection('activities').createIndex({ activityType: 1, createdAt: -1 });
-      await this.db.collection('activities').createIndex({ isPublic: 1, createdAt: -1 });
-
-      // Community stats collection indexes
-      await this.db.collection('communityStats').createIndex({ type: 1, period: 1 }, { unique: true });
-
-      console.log('✅ Database indexes created successfully');
+      
+      console.log('✅ Database indexes created');
     } catch (error) {
-      console.warn('⚠️ Some indexes may already exist:', error.message);
+      console.warn('⚠️ Index creation warning:', error.message);
     }
   }
 

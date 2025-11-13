@@ -7,6 +7,13 @@ const rateLimit = require('express-rate-limit');
 // Import database connection
 const database = require('./config/database');
 
+// Import security middleware
+const { 
+  sanitizeInput, 
+  requestSizeLimit, 
+  securityHeaders 
+} = require('./middleware/security');
+
 // Import routes
 const challengeRoutes = require('./routes/challenges');
 const tipRoutes = require('./routes/tips');
@@ -42,22 +49,62 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
     },
   },
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// CORS configuration
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+// CORS configuration - relaxed for development
+const allowedOrigins = [
+  process.env.FRONTEND_URL || 'http://localhost:3000',
+  'http://localhost:3001', // Allow server requests
+  'http://localhost:5173', // Vite dev server
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001',
+];
 
-// Rate limiting
+if (process.env.NODE_ENV === 'development') {
+  // Allow all localhost origins in development
+  app.use(cors({
+    origin: true, // Allow all origins in development
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    maxAge: 86400
+  }));
+} else {
+  app.use(cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    maxAge: 86400
+  }));
+}
+
+// Rate limiting with environment-specific configuration
+const windowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000; // 15 minutes
+const maxRequests = process.env.NODE_ENV === 'development' ? 1000 : (parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100);
+
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs,
+  max: maxRequests,
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   message: {
     success: false,
     error: {
@@ -67,9 +114,26 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Apply security headers
+app.use(securityHeaders);
+
+// Request size limiting (before body parsing)
+app.use(requestSizeLimit);
+
+// Body parsing middleware with enhanced security
+app.use(express.json({ 
+  limit: '10mb',
+  strict: true,
+  type: 'application/json'
+}));
+app.use(express.urlencoded({ 
+  extended: true, 
+  limit: '10mb',
+  parameterLimit: 100 
+}));
+
+// Input sanitization
+app.use(sanitizeInput);
 
 // Logging middleware
 if (process.env.NODE_ENV === 'development') {
