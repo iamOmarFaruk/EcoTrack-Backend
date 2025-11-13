@@ -201,13 +201,23 @@ Build REST API backend for EcoTrack - a sustainability platform where users join
 ## API ENDPOINTS SPECIFICATION
 ================================================================================
 
-### AUTHENTICATION ENDPOINTS
+### AUTHENTICATION ENDPOINTS (Firebase Auth)
 ```
-POST /api/auth/register          # Create user account
-POST /api/auth/login             # User login
-GET  /api/auth/me                # Get current user data
-POST /api/auth/logout            # User logout
-POST /api/auth/refresh           # Refresh auth token
+POST /api/auth/verify-token          # Verify Firebase ID token
+     Body: { "idToken": "firebase_id_token" }
+     
+GET  /api/auth/user                  # Get authenticated user info (requires auth)
+POST /api/auth/set-claims            # Set custom user claims (admin only)
+     Body: { "uid": "user_id", "customClaims": { "admin": true } }
+     
+GET  /api/auth/users                 # List all users (admin only)
+     Query: ?limit=1000
+     
+GET  /api/auth/protected             # Test protected route (requires auth)
+GET  /api/auth/admin                 # Test admin route (requires admin role)
+
+# Authentication Headers Required:
+# Authorization: Bearer <firebase_id_token>
 ```
 
 ### CHALLENGES API
@@ -308,6 +318,17 @@ GET    /api/admin/analytics             # Admin dashboard analytics
 ================================================================================
 ## AUTHENTICATION IMPLEMENTATION
 ================================================================================
+
+### ✅ FIREBASE SETUP STATUS: COMPLETED
+**Project ID:** ecotrack-sso  
+**Service Account:** ✅ ecotrack-sso-firebase-adminsdk-fbsvc-fb8fe712b3.json (root directory)  
+**Environment Variables:** ✅ Configured in .env  
+**Git Security:** ✅ Firebase file added to .gitignore  
+
+### Available Routes:
+- /api/auth/* - Firebase authentication endpoints
+- /api/users/profile - User profile with auto-creation
+- Authentication middleware ready for all protected routes
 
 ### Firebase Auth Integration Steps:
 

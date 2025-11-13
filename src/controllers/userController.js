@@ -12,22 +12,52 @@ class UserController {
    */
   async getCurrentUserProfile(req, res, next) {
     try {
-      const userId = req.user?.uid || 'user123'; // Will use auth later
+      const firebaseUid = req.user.uid;
+      const userEmail = req.user.email;
 
-      const user = await userDb.findByFirebaseUid(userId);
+      let user = await userDb.findByFirebaseUid(firebaseUid);
 
+      // If user doesn't exist in our database, create them
       if (!user) {
-        return res.status(404).json({
-          success: false,
-          error: {
-            message: 'User not found',
-            code: 'USER_NOT_FOUND'
+        const newUserData = {
+          firebaseUid,
+          email: userEmail,
+          displayName: req.user.email.split('@')[0], // Default display name
+          photoURL: null,
+          bio: '',
+          location: '',
+          preferences: {
+            privacy: 'public',
+            notifications: {
+              email: true,
+              push: true,
+              challenges: true,
+              tips: true,
+              events: true
+            }
+          },
+          role: 'user',
+          joinedAt: new Date(),
+          lastActive: new Date(),
+          stats: {
+            challengesJoined: 0,
+            challengesCompleted: 0,
+            totalImpactPoints: 0,
+            eventsAttended: 0,
+            tipsShared: 0,
+            streak: 0
           }
-        });
+        };
+
+        user = await userDb.create(newUserData);
+        console.log(`✅ New user created: ${firebaseUid}`);
+      } else {
+        // Update last active timestamp
+        await userDb.update(firebaseUid, { lastActive: new Date() });
       }
 
       // Remove sensitive information
-      const { firebaseUid, ...userProfile } = user;
+      const { firebaseUid: uid, ...userProfile } = user;
 
       res.status(200).json({
         success: true,
@@ -45,7 +75,7 @@ class UserController {
    */
   async updateUserProfile(req, res, next) {
     try {
-      const userId = req.user?.uid || 'user123'; // Will use auth later
+      const firebaseUid = req.user.uid;
       const updateData = req.body;
 
       // Remove fields that shouldn't be updated
@@ -56,7 +86,10 @@ class UserController {
       delete updateData.stats;
       delete updateData.joinedAt;
 
-      const updatedUser = await userDb.update(userId, updateData);
+      // Add last active timestamp
+      updateData.lastActive = new Date();
+
+      const updatedUser = await userDb.update(firebaseUid, updateData);
 
       if (!updatedUser) {
         return res.status(404).json({
@@ -69,7 +102,7 @@ class UserController {
       }
 
       // Remove sensitive information
-      const { firebaseUid, ...userProfile } = updatedUser;
+      const { firebaseUid: uid, ...userProfile } = updatedUser;
 
       res.status(200).json({
         success: true,
@@ -90,7 +123,7 @@ class UserController {
     try {
       const { id } = req.params;
 
-      const user = userMockDb.findById(id);
+      const user = await userDb.findByFirebaseUid(id);
 
       if (!user) {
         return res.status(404).json({
@@ -215,7 +248,7 @@ class UserController {
       const { id } = req.params;
       const { status } = req.query; // 'active', 'completed', 'all'
 
-      const user = userMockDb.findById(id);
+      const user = await userDb.findByFirebaseUid(id);
 
       if (!user) {
         return res.status(404).json({
@@ -279,7 +312,7 @@ class UserController {
     try {
       const { id } = req.params;
 
-      const user = userMockDb.findById(id);
+      const user = await userDb.findByFirebaseUid(id);
 
       if (!user) {
         return res.status(404).json({

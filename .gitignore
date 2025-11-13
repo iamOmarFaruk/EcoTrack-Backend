@@ -49,6 +49,9 @@ Thumbs.db
 # Firebase
 firebase-debug.log
 .firebase/
+# Firebase service account keys (keep these secret!)
+*firebase-adminsdk*.json
+ecotrack-sso-firebase-adminsdk-fbsvc-fb8fe712b3.json
 
 # Temporary files
 tmp/

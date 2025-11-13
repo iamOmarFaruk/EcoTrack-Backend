@@ -1,17 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
+const { authenticateFirebaseToken, optionalFirebaseAuth } = require('../middleware/firebaseAuth');
 
 /**
  * User Routes
  * Base path: /api/users
  */
 
-// GET /api/users/profile - Get current user profile (auth required later)
-router.get('/profile', userController.getCurrentUserProfile);
+// GET /api/users/profile - Get current user profile (requires authentication)
+router.get('/profile', authenticateFirebaseToken, userController.getCurrentUserProfile);
 
-// PATCH /api/users/profile - Update current user profile (auth required later)
-router.patch('/profile', userController.updateUserProfile);
+// PATCH /api/users/profile - Update current user profile (requires authentication)
+router.patch('/profile', authenticateFirebaseToken, userController.updateUserProfile);
 
 // GET /api/users/:id - Get public user profile
 router.get('/:id', userController.getPublicUserProfile);

@@ -7,6 +7,9 @@ const rateLimit = require('express-rate-limit');
 // Import database connection
 const database = require('./config/database');
 
+// Import Firebase configuration
+const { initializeFirebase } = require('./config/firebase');
+
 // Import security middleware
 const { 
   sanitizeInput, 
@@ -20,6 +23,7 @@ const tipRoutes = require('./routes/tips');
 const eventRoutes = require('./routes/events');
 const userRoutes = require('./routes/users');
 const statsRoutes = require('./routes/stats');
+const authRoutes = require('./routes/auth');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -40,6 +44,14 @@ async function initializeDatabase() {
 
 // Initialize database when app starts
 initializeDatabase();
+
+// Initialize Firebase
+try {
+  initializeFirebase();
+} catch (error) {
+  console.error('❌ Firebase initialization failed:', error.message);
+  process.exit(1);
+}
 
 // Security middleware
 app.use(helmet({
@@ -154,6 +166,7 @@ app.get('/health', (req, res) => {
 });
 
 // API routes
+app.use('/api/auth', authRoutes);
 app.use('/api/challenges', challengeRoutes);
 app.use('/api/tips', tipRoutes);
 app.use('/api/events', eventRoutes);
