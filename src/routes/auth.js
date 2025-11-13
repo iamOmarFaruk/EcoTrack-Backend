@@ -168,4 +168,50 @@ router.get('/admin', authenticateFirebaseToken, requireAdmin, (req, res) => {
   });
 });
 
+/**
+ * @route GET /api/auth/profile
+ * @desc Get authenticated user profile information only
+ * @access Private (requires Firebase authentication)
+ */
+router.get('/profile', authenticateFirebaseToken, async (req, res, next) => {
+  try {
+    const { userDb } = require('../models/userModel');
+    const firebaseUid = req.user.uid;
+    
+    // Only get existing user profile, don't create if doesn't exist
+    const user = await userDb.findByFirebaseUid(firebaseUid);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          message: 'User profile not found. Please complete your profile setup.',
+          code: 'PROFILE_NOT_FOUND'
+        }
+      });
+    }
+
+    // Update last active timestamp
+    await userDb.update(firebaseUid, { lastActive: new Date() });
+
+    // Remove sensitive information and return clean profile
+    const { firebaseUid: uid, ...userProfile } = user;
+
+    res.status(200).json({
+      success: true,
+      data: { 
+        user: userProfile,
+        firebaseInfo: {
+          uid: req.user.uid,
+          email: req.user.email,
+          emailVerified: req.user.email_verified
+        }
+      }
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;

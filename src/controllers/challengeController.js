@@ -64,7 +64,7 @@ class ChallengeController {
     try {
       const { id } = req.params;
       
-      const challenge = challengeMockDb.findById(id);
+      const challenge = await challengeDb.findById(id);
       
       if (!challenge) {
         return res.status(404).json({
@@ -117,6 +117,17 @@ class ChallengeController {
         });
       }
 
+      // Check if user is authenticated (this should always be true due to middleware)
+      if (!req.user || !req.user.uid || !req.user.email) {
+        return res.status(401).json({
+          success: false,
+          error: {
+            message: 'User authentication required to create challenges',
+            code: 'AUTHENTICATION_REQUIRED'
+          }
+        });
+      }
+
       // Validate date logic
       const start = new Date(startDate);
       const end = new Date(endDate);
@@ -143,7 +154,9 @@ class ChallengeController {
         instructions: instructions || [],
         tips: tips || [],
         imageUrl,
-        createdBy: req.user?.email || 'system@ecotrack.com', // Will use auth later
+        createdBy: req.user.email,
+        createdById: req.user.uid,
+        creatorName: req.user.name || req.user.email.split('@')[0],
         impactMetric: 'points' // Default metric
       };
 
@@ -235,7 +248,7 @@ class ChallengeController {
   async joinChallenge(req, res, next) {
     try {
       const { id } = req.params;
-      const userId = req.user?.uid || 'mock_user_123'; // Will use auth later
+      const userId = req.user.uid;
 
       try {
         const userChallenge = await challengeDb.join(id, userId);
@@ -268,7 +281,7 @@ class ChallengeController {
   async leaveChallenge(req, res, next) {
     try {
       const { id } = req.params;
-      const userId = req.user?.uid || 'mock_user_123'; // Will use auth later
+      const userId = req.user.uid;
 
       // For now, we'll just return success
       // In real implementation, this would remove from userChallenges and decrement participants
@@ -291,7 +304,7 @@ class ChallengeController {
     try {
       const { id } = req.params;
       const { progress, notes } = req.body;
-      const userId = req.user?.uid || 'mock_user_123'; // Will use auth later
+      const userId = req.user.uid;
 
       // Validate progress
       if (progress < 0 || progress > 100) {
@@ -330,9 +343,9 @@ class ChallengeController {
     try {
       const { id } = req.params;
       const { impactAchieved, notes } = req.body;
-      const userId = req.user?.uid || 'mock_user_123'; // Will use auth later
+      const userId = req.user.uid;
 
-      const challenge = challengeMockDb.findById(id);
+      const challenge = await challengeDb.findById(id);
       
       if (!challenge) {
         return res.status(404).json({
@@ -371,7 +384,7 @@ class ChallengeController {
     try {
       const { id } = req.params;
       
-      const challenge = challengeMockDb.findById(id);
+      const challenge = await challengeDb.findById(id);
       
       if (!challenge) {
         return res.status(404).json({
