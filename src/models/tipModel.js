@@ -38,7 +38,7 @@ const tipDb = {
           sortOption = { createdAt: 1 };
           break;
         case 'popular':
-          sortOption = { upvotes: -1 };
+          sortOption = { upvoteCount: -1 };
           break;
         default:
           sortOption = { createdAt: -1 };
@@ -70,13 +70,12 @@ const tipDb = {
     try {
       const db = database.getDb();
       const newTip = {
-        ...tipData,
-        upvotes: 0,
-        downvotes: 0,
-        votes: [],
+        author: tipData.author,
+        title: tipData.title,
+        content: tipData.content,
+        upvoteCount: 0,
         createdAt: new Date(),
-        updatedAt: new Date(),
-        isVerified: false
+        updatedAt: new Date()
       };
       
       const result = await db.collection('tips').insertOne(newTip);
@@ -117,80 +116,30 @@ const tipDb = {
     }
   },
 
-  // Vote on tip
-  async vote(tipId, userId, voteType) {
+  // Upvote tip - unlimited votes allowed
+  async upvote(tipId, userId) {
     try {
       const db = database.getDb();
       
-      // Remove any existing vote from this user
-      await db.collection('tips').updateOne(
-        { _id: new ObjectId(tipId) },
-        { 
-          $pull: { votes: { userId } },
-          $set: { updatedAt: new Date() }
-        }
-      );
-      
-      // Add new vote and update counts
-      const voteUpdate = {
-        $push: { votes: { userId, voteType, votedAt: new Date() } },
-        $set: { updatedAt: new Date() }
-      };
-      
-      if (voteType === 'upvote') {
-        voteUpdate.$inc = { upvotes: 1 };
-      } else {
-        voteUpdate.$inc = { downvotes: 1 };
-      }
-      
-      const result = await db.collection('tips').findOneAndUpdate(
-        { _id: new ObjectId(tipId) },
-        voteUpdate,
-        { returnDocument: 'after' }
-      );
-      
-      return result.value;
-    } catch (error) {
-      throw new Error(`Error voting on tip: ${error.message}`);
-    }
-  },
-
-  // Remove vote from tip
-  async removeVote(tipId, userId) {
-    try {
-      const db = database.getDb();
-      
-      // First get the current vote to adjust counts
+      // Check if tip exists
       const tip = await db.collection('tips').findOne({ _id: new ObjectId(tipId) });
       if (!tip) {
         throw new Error('Tip not found');
       }
       
-      const userVote = tip.votes.find(vote => vote.userId === userId);
-      if (!userVote) {
-        throw new Error('No vote found for this user');
-      }
-      
-      const voteUpdate = {
-        $pull: { votes: { userId } },
-        $set: { updatedAt: new Date() }
-      };
-      
-      if (userVote.voteType === 'upvote') {
-        voteUpdate.$inc = { upvotes: -1 };
-      } else {
-        voteUpdate.$inc = { downvotes: -1 };
-      }
-      
+      // Allow unlimited upvotes - no restrictions
       const result = await db.collection('tips').findOneAndUpdate(
         { _id: new ObjectId(tipId) },
-        voteUpdate,
+        { 
+          $inc: { upvoteCount: 1 },
+          $set: { updatedAt: new Date() }
+        },
         { returnDocument: 'after' }
       );
       
       return result.value;
     } catch (error) {
-      throw new Error(`Error removing vote: ${error.message}`);
+      throw new Error(`Error upvoting tip: ${error.message}`);
     }
   }
 };

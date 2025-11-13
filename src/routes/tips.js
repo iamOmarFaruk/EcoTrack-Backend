@@ -1,37 +1,51 @@
 const express = require('express');
 const router = express.Router();
 const tipController = require('../controllers/tipController');
+const { authenticateFirebaseToken, optionalFirebaseAuth } = require('../middleware/firebaseAuth');
+const { validate, validateQuery, querySchemas } = require('../middleware/validation');
 
 /**
  * Tips Routes
  * Base path: /api/tips
  */
 
-// GET /api/tips/popular - Get popular tips (place specific routes before parameterized ones)
-router.get('/popular', tipController.getPopularTips);
+// GET /api/tips - Get all tips with filtering and sorting (public with optional auth)
+router.get('/', 
+  optionalFirebaseAuth, // Optional auth to show user upvote status
+  validateQuery(querySchemas.tipFilters), 
+  tipController.getAllTips
+);
 
-// GET /api/tips/category/:category - Get tips by category
-router.get('/category/:category', tipController.getTipsByCategory);
+// GET /api/tips/:id - Get specific tip (public with optional auth)
+router.get('/:id', 
+  optionalFirebaseAuth, // Optional auth to show ownership and upvote status
+  tipController.getTipById
+);
 
-// GET /api/tips - Get all tips with filtering and sorting
-router.get('/', tipController.getAllTips);
+// POST /api/tips - Create new tip (requires authentication)
+router.post('/', 
+  authenticateFirebaseToken, 
+  validate('createTip'), 
+  tipController.createTip
+);
 
-// GET /api/tips/:id - Get specific tip
-router.get('/:id', tipController.getTipById);
+// PATCH /api/tips/:id - Update tip (requires authentication and ownership)
+router.patch('/:id', 
+  authenticateFirebaseToken, 
+  validate('updateTip'), 
+  tipController.updateTip
+);
 
-// POST /api/tips - Create new tip (auth required later)
-router.post('/', tipController.createTip);
+// DELETE /api/tips/:id - Delete tip (requires authentication and ownership)
+router.delete('/:id', 
+  authenticateFirebaseToken, 
+  tipController.deleteTip
+);
 
-// PATCH /api/tips/:id - Update tip (auth required later - owner only)
-router.patch('/:id', tipController.updateTip);
-
-// DELETE /api/tips/:id - Delete tip (auth required later - owner/admin only)
-router.delete('/:id', tipController.deleteTip);
-
-// POST /api/tips/:id/vote - Vote on tip (auth required later)
-router.post('/:id/vote', tipController.voteTip);
-
-// DELETE /api/tips/:id/vote - Remove vote from tip (auth required later)
-router.delete('/:id/vote', tipController.removeVote);
+// POST /api/tips/:id/upvote - Upvote tip (requires authentication, unlimited votes allowed)
+router.post('/:id/upvote', 
+  authenticateFirebaseToken, 
+  tipController.upvoteTip
+);
 
 module.exports = router;

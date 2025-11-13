@@ -2,13 +2,14 @@ const { tipDb } = require('../models/tipModel');
 
 /**
  * Tips Controller
- * Handles all tip-related operations
+ * Handles all tip-related operations with proper authentication and authorization
  */
 class TipController {
 
   /**
    * Get all tips with filtering, sorting and pagination
    * GET /api/tips
+   * Public endpoint - no authentication required
    */
   async getAllTips(req, res, next) {
     try {
@@ -24,7 +25,9 @@ class TipController {
       const tips = await tipDb.findAll({
         category,
         search,
-        sort
+        sort,
+        limit: parseInt(limit) * parseInt(page), // Get enough for pagination
+        skip: 0
       });
 
       // Pagination
@@ -32,11 +35,9 @@ class TipController {
       const endIndex = startIndex + parseInt(limit);
       const paginatedTips = tips.slice(startIndex, endIndex);
 
-      // Add calculated fields
+      // No need to track individual votes anymore since unlimited voting is allowed
       const enhancedTips = paginatedTips.map(tip => ({
-        ...tip,
-        netVotes: tip.upvotes - tip.downvotes,
-        totalVotes: tip.upvotes + tip.downvotes
+        ...tip
       }));
 
       // Prepare pagination info
@@ -66,6 +67,7 @@ class TipController {
   /**
    * Get single tip by ID
    * GET /api/tips/:id
+   * Public endpoint - no authentication required
    */
   async getTipById(req, res, next) {
     try {
@@ -83,11 +85,10 @@ class TipController {
         });
       }
 
-      // Add calculated fields
+      // Add ownership status if authenticated
       const enhancedTip = {
         ...tip,
-        netVotes: tip.upvotes - tip.downvotes,
-        totalVotes: tip.upvotes + tip.downvotes
+        isOwner: req.user ? tip.author === req.user.uid : false
       };
 
       res.status(200).json({
@@ -103,33 +104,18 @@ class TipController {
   /**
    * Create new tip
    * POST /api/tips
+   * Requires authentication
    */
   async createTip(req, res, next) {
     try {
-      const {
-        title,
-        content,
-        category,
-        imageUrl
-      } = req.body;
+      const { title, content } = req.body;
 
-      // Basic validation
-      if (!title || !content || !category) {
+      // Validation is handled by middleware, but double-check required fields
+      if (!title || !content) {
         return res.status(400).json({
           success: false,
           error: {
-            message: 'Required fields: title, content, category',
-            code: 'VALIDATION_ERROR'
-          }
-        });
-      }
-
-      // Validate content length
-      if (content.length < 20 || content.length > 1000) {
-        return res.status(400).json({
-          success: false,
-          error: {
-            message: 'Content must be between 20 and 1000 characters',
+            message: 'Title and content are required',
             code: 'VALIDATION_ERROR'
           }
         });
@@ -138,11 +124,7 @@ class TipController {
       const tipData = {
         title,
         content,
-        category,
-        imageUrl,
-        author: req.user?.email || 'mock@example.com', // Will use auth later
-        authorName: req.user?.displayName || 'Mock User',
-        authorAvatar: req.user?.photoURL || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150'
+        author: req.user.uid // Firebase UID
       };
 
       const newTip = await tipDb.create(tipData);
@@ -161,25 +143,16 @@ class TipController {
   /**
    * Update tip
    * PATCH /api/tips/:id
+   * Requires authentication and ownership
    */
   async updateTip(req, res, next) {
     try {
       const { id } = req.params;
-      const updateData = req.body;
-
-      // Remove fields that shouldn't be updated
-      delete updateData._id;
-      delete updateData.author;
-      delete updateData.authorName;
-      delete updateData.authorAvatar;
-      delete updateData.upvotes;
-      delete updateData.downvotes;
-      delete updateData.votes;
-      delete updateData.createdAt;
-
-      const updatedTip = await tipDb.update(id, updateData);
-
-      if (!updatedTip) {
+      
+      // Find the tip first to check ownership
+      const existingTip = await tipDb.findById(id);
+      
+      if (!existingTip) {
         return res.status(404).json({
           success: false,
           error: {
@@ -188,6 +161,34 @@ class TipController {
           }
         });
       }
+
+      // Check if user owns the tip
+      if (existingTip.author !== req.user.uid) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            message: 'You can only edit your own tips',
+            code: 'FORBIDDEN'
+          }
+        });
+      }
+
+      // Only allow updating title and content
+      const updateData = {};
+      if (req.body.title) updateData.title = req.body.title;
+      if (req.body.content) updateData.content = req.body.content;
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            message: 'No valid fields to update',
+            code: 'VALIDATION_ERROR'
+          }
+        });
+      }
+
+      const updatedTip = await tipDb.update(id, updateData);
 
       res.status(200).json({
         success: true,
@@ -203,19 +204,44 @@ class TipController {
   /**
    * Delete tip
    * DELETE /api/tips/:id
+   * Requires authentication and ownership
    */
   async deleteTip(req, res, next) {
     try {
       const { id } = req.params;
 
-      const deleted = await tipDb.delete(id);
-
-      if (!deleted) {
+      // Find the tip first to check ownership
+      const existingTip = await tipDb.findById(id);
+      
+      if (!existingTip) {
         return res.status(404).json({
           success: false,
           error: {
             message: 'Tip not found',
             code: 'TIP_NOT_FOUND'
+          }
+        });
+      }
+
+      // Check if user owns the tip
+      if (existingTip.author !== req.user.uid) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            message: 'You can only delete your own tips',
+            code: 'FORBIDDEN'
+          }
+        });
+      }
+
+      const deleted = await tipDb.delete(id);
+
+      if (!deleted) {
+        return res.status(500).json({
+          success: false,
+          error: {
+            message: 'Failed to delete tip',
+            code: 'DELETE_FAILED'
           }
         });
       }
@@ -231,29 +257,28 @@ class TipController {
   }
 
   /**
-   * Vote on a tip
-   * POST /api/tips/:id/vote
+   * Upvote a tip
+   * POST /api/tips/:id/upvote
+   * Requires authentication - unlimited votes allowed
    */
-  async voteTip(req, res, next) {
+  async upvoteTip(req, res, next) {
     try {
       const { id } = req.params;
-      const { voteType } = req.body;
-      const userId = req.user?.uid || 'mock_user_123'; // Will use auth later
+      const userId = req.user.uid;
 
-      // Validate vote type
-      if (!voteType || !['upvote', 'downvote'].includes(voteType)) {
-        return res.status(400).json({
-          success: false,
-          error: {
-            message: 'Vote type must be "upvote" or "downvote"',
-            code: 'INVALID_VOTE_TYPE'
-          }
-        });
-      }
+      const updatedTip = await tipDb.upvote(id, userId);
 
-      const updatedTip = await tipDb.vote(id, userId, voteType);
+      res.status(200).json({
+        success: true,
+        data: {
+          tipId: id,
+          upvoteCount: updatedTip.upvoteCount
+        },
+        message: 'Tip upvoted successfully'
+      });
 
-      if (!updatedTip) {
+    } catch (error) {
+      if (error.message.includes('Tip not found')) {
         return res.status(404).json({
           success: false,
           error: {
@@ -263,133 +288,10 @@ class TipController {
         });
       }
 
-      res.status(200).json({
-        success: true,
-        data: {
-          tipId: id,
-          voteType,
-          upvotes: updatedTip.upvotes,
-          downvotes: updatedTip.downvotes,
-          netVotes: updatedTip.upvotes - updatedTip.downvotes
-        },
-        message: `${voteType === 'upvote' ? 'Upvoted' : 'Downvoted'} tip successfully`
-      });
-
-    } catch (error) {
       next(error);
     }
   }
 
-  /**
-   * Remove vote from a tip
-   * DELETE /api/tips/:id/vote
-   */
-  async removeVote(req, res, next) {
-    try {
-      const { id } = req.params;
-      const userId = req.user?.uid || 'mock_user_123'; // Will use auth later
-
-      const updatedTip = await tipDb.removeVote(id, userId);
-
-      if (!updatedTip) {
-        return res.status(404).json({
-          success: false,
-          error: {
-            message: 'Tip not found',
-            code: 'TIP_NOT_FOUND'
-          }
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        data: {
-          tipId: id,
-          upvotes: updatedTip.upvotes,
-          downvotes: updatedTip.downvotes,
-          netVotes: updatedTip.upvotes - updatedTip.downvotes
-        },
-        message: 'Vote removed successfully'
-      });
-
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Get popular tips (sorted by votes)
-   * GET /api/tips/popular
-   */
-  async getPopularTips(req, res, next) {
-    try {
-      const { limit = 10 } = req.query;
-
-      // Get tips sorted by popularity
-      const popularTips = await tipDb.findAll({ sort: 'popular' })
-        .slice(0, parseInt(limit))
-        .map(tip => ({
-          ...tip,
-          netVotes: tip.upvotes - tip.downvotes,
-          totalVotes: tip.upvotes + tip.downvotes
-        }));
-
-      res.status(200).json({
-        success: true,
-        data: { tips: popularTips },
-        message: `Top ${limit} popular tips`
-      });
-
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  /**
-   * Get tips by category
-   * GET /api/tips/category/:category
-   */
-  async getTipsByCategory(req, res, next) {
-    try {
-      const { category } = req.params;
-      const { page = 1, limit = 20 } = req.query;
-
-      const tips = await tipDb.findAll({ category });
-
-      // Pagination
-      const startIndex = (parseInt(page) - 1) * parseInt(limit);
-      const endIndex = startIndex + parseInt(limit);
-      const paginatedTips = tips.slice(startIndex, endIndex);
-
-      const enhancedTips = paginatedTips.map(tip => ({
-        ...tip,
-        netVotes: tip.upvotes - tip.downvotes,
-        totalVotes: tip.upvotes + tip.downvotes
-      }));
-
-      const totalTips = tips.length;
-      const totalPages = Math.ceil(totalTips / parseInt(limit));
-
-      res.status(200).json({
-        success: true,
-        data: {
-          tips: enhancedTips,
-          category
-        },
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total: totalTips,
-          totalPages,
-          hasNext: page < totalPages,
-          hasPrev: page > 1
-        }
-      });
-
-    } catch (error) {
-      next(error);
-    }
-  }
 }
 
 module.exports = new TipController();

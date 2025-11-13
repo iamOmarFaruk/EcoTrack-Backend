@@ -50,32 +50,32 @@ const schemas = {
 
   // Tip validation
   createTip: Joi.object({
-    title: Joi.string().min(5).max(100).required(),
-    content: Joi.string().min(20).max(1000).required(),
-    category: Joi.string().valid(
-      'Energy Conservation', 
-      'Water Conservation', 
-      'Sustainable Transport', 
-      'Green Living', 
-      'Waste Reduction',
-      'Waste Management'
-    ).required(),
-    imageUrl: Joi.string().uri().allow('')
+    title: Joi.string().min(5).max(100).required().messages({
+      'string.empty': 'Title is required',
+      'string.min': 'Title must be at least 5 characters long',
+      'string.max': 'Title cannot exceed 100 characters',
+      'any.required': 'Title is required'
+    }),
+    content: Joi.string().min(20).max(500).required().messages({
+      'string.empty': 'Content is required',
+      'string.min': 'Content must be at least 20 characters long',
+      'string.max': 'Content cannot exceed 500 characters',
+      'any.required': 'Content is required'
+    })
   }),
 
   updateTip: Joi.object({
-    title: Joi.string().min(5).max(100),
-    content: Joi.string().min(20).max(1000),
-    category: Joi.string().valid(
-      'Energy Conservation', 
-      'Water Conservation', 
-      'Sustainable Transport', 
-      'Green Living', 
-      'Waste Reduction',
-      'Waste Management'
-    ),
-    imageUrl: Joi.string().uri().allow('')
-  }).min(1),
+    title: Joi.string().min(5).max(100).messages({
+      'string.min': 'Title must be at least 5 characters long',
+      'string.max': 'Title cannot exceed 100 characters'
+    }),
+    content: Joi.string().min(20).max(500).messages({
+      'string.min': 'Content must be at least 20 characters long',
+      'string.max': 'Content cannot exceed 500 characters'
+    })
+  }).min(1).messages({
+    'object.min': 'At least one field (title or content) must be provided for update'
+  }),
 
   // Event validation
   createEvent: Joi.object({
