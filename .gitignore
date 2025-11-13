@@ -72,4 +72,4 @@ build/
 
 # Docker
 Dockerfile.local
-docker-compose.override.yml
+docker-compose.override.ymlsrc/config/ecotrack-sso-firebase-adminsdk-fbsvc-033713f2b8.json
