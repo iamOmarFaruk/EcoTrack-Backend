@@ -21,11 +21,16 @@ const authenticateFirebaseToken = async (req, res, next) => {
     // Verify the Firebase ID token
     const decodedToken = await verifyIdToken(idToken);
     
+    // Get full user record to access profile information
+    const userRecord = await getUserByUid(decodedToken.uid);
+    
     // Add user info to request object
     req.user = {
       uid: decodedToken.uid,
       email: decodedToken.email,
       emailVerified: decodedToken.email_verified,
+      displayName: userRecord.displayName || decodedToken.name || 'Anonymous User',
+      photoURL: userRecord.photoURL || decodedToken.picture || null,
       customClaims: decodedToken.customClaims || {}
     };
     
@@ -55,10 +60,15 @@ const optionalFirebaseAuth = async (req, res, next) => {
     const idToken = authHeader.substring(7);
     const decodedToken = await verifyIdToken(idToken);
     
+    // Get full user record to access profile information
+    const userRecord = await getUserByUid(decodedToken.uid);
+    
     req.user = {
       uid: decodedToken.uid,
       email: decodedToken.email,
       emailVerified: decodedToken.email_verified,
+      displayName: userRecord.displayName || decodedToken.name || 'Anonymous User',
+      photoURL: userRecord.photoURL || decodedToken.picture || null,
       customClaims: decodedToken.customClaims || {}
     };
     

@@ -71,6 +71,8 @@ const tipDb = {
       const db = database.getDb();
       const newTip = {
         author: tipData.author,
+        authorName: tipData.authorName,
+        authorImage: tipData.authorImage,
         title: tipData.title,
         content: tipData.content,
         upvoteCount: 0,

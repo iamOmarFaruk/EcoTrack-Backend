@@ -124,7 +124,9 @@ class TipController {
       const tipData = {
         title,
         content,
-        author: req.user.uid // Firebase UID
+        author: req.user.uid, // Firebase UID
+        authorName: req.user.displayName || 'Anonymous User',
+        authorImage: req.user.photoURL || null
       };
 
       const newTip = await tipDb.create(tipData);
