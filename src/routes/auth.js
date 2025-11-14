@@ -284,4 +284,196 @@ router.get('/profile', authenticateFirebaseToken, async (req, res, next) => {
   }
 });
 
+/**
+ * @route GET /api/auth/me
+ * @desc Get complete authenticated user data for React frontend
+ * @desc Returns ALL user information including profile, stats, preferences, and Firebase data
+ * @access Private (requires Firebase authentication)
+ */
+router.get('/me', authenticateFirebaseToken, async (req, res, next) => {
+  try {
+    const { userDb } = require('../models/userModel');
+    const firebaseUid = req.user.uid;
+    
+    // Get user from MongoDB
+    let user = await userDb.findByFirebaseUid(firebaseUid);
+
+    // If user doesn't exist in database, create basic profile
+    if (!user) {
+      const newUserData = {
+        firebaseUid,
+        email: req.user.email,
+        displayName: req.user.displayName || req.user.email.split('@')[0],
+        photoURL: req.user.photoURL || null,
+        bio: '',
+        location: '',
+        preferences: {
+          privacy: 'public',
+          notifications: {
+            email: true,
+            push: true,
+            challenges: true,
+            tips: true,
+            events: true
+          }
+        },
+        role: 'user',
+        joinedAt: new Date(),
+        lastActive: new Date(),
+        stats: {
+          challengesJoined: 0,
+          challengesCompleted: 0,
+          totalImpactPoints: 0,
+          eventsAttended: 0,
+          tipsShared: 0,
+          streak: 0
+        }
+      };
+
+      user = await userDb.create(newUserData);
+      console.log(`✅ New user profile created via /me endpoint: ${firebaseUid}`);
+    } else {
+      // Update last active timestamp
+      await userDb.update(firebaseUid, { lastActive: new Date() });
+    }
+
+    // Prepare complete user data response
+    const completeUserData = {
+      // Database User Profile
+      _id: user._id,
+      displayName: user.displayName,
+      email: user.email,
+      photoURL: user.photoURL,
+      bio: user.bio || '',
+      location: user.location || '',
+      
+      // User Stats
+      stats: {
+        challengesJoined: user.stats?.challengesJoined || 0,
+        challengesCompleted: user.stats?.challengesCompleted || 0,
+        totalImpactPoints: user.stats?.totalImpactPoints || 0,
+        eventsAttended: user.stats?.eventsAttended || 0,
+        tipsShared: user.stats?.tipsShared || 0,
+        streak: user.stats?.streak || 0,
+        completionRate: user.stats?.challengesJoined > 0 
+          ? Math.round((user.stats.challengesCompleted / user.stats.challengesJoined) * 100)
+          : 0
+      },
+      
+      // User Preferences
+      preferences: {
+        privacy: user.preferences?.privacy || 'public',
+        notifications: {
+          email: user.preferences?.notifications?.email ?? true,
+          push: user.preferences?.notifications?.push ?? true,
+          challenges: user.preferences?.notifications?.challenges ?? true,
+          tips: user.preferences?.notifications?.tips ?? true,
+          events: user.preferences?.notifications?.events ?? true
+        }
+      },
+      
+      // User Role & Status
+      role: user.role || 'user',
+      isActive: user.isActive !== undefined ? user.isActive : true,
+      
+      // Timestamps
+      joinedAt: user.joinedAt,
+      lastActive: user.lastActive,
+      
+      // Firebase Authentication Data
+      firebase: {
+        uid: req.user.uid,
+        email: req.user.email,
+        emailVerified: req.user.emailVerified,
+        displayName: req.user.displayName,
+        photoURL: req.user.photoURL,
+        customClaims: req.user.customClaims || {}
+      },
+      
+      // Additional Computed Data
+      membershipDuration: calculateMembershipDuration(user.joinedAt),
+      rank: calculateUserRank(user.stats?.totalImpactPoints || 0),
+      badges: calculateBadges(user.stats || {}),
+      nextRank: getNextRank(user.stats?.totalImpactPoints || 0)
+    };
+
+    res.status(200).json({
+      success: true,
+      message: 'User data retrieved successfully',
+      data: completeUserData,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error in /api/auth/me:', error);
+    next(error);
+  }
+});
+
+// Helper functions for /me endpoint
+function calculateMembershipDuration(joinedAt) {
+  if (!joinedAt) return 'New member';
+  
+  const now = new Date();
+  const joined = new Date(joinedAt);
+  const diffTime = Math.abs(now - joined);
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (diffDays < 7) return `${diffDays} days`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)} months`;
+  return `${Math.floor(diffDays / 365)} years`;
+}
+
+function calculateUserRank(impactPoints) {
+  if (impactPoints >= 1000) return 'Legend';
+  if (impactPoints >= 500) return 'Champion';
+  if (impactPoints >= 300) return 'Expert';
+  if (impactPoints >= 150) return 'Enthusiast';
+  if (impactPoints >= 50) return 'Beginner';
+  return 'Newcomer';
+}
+
+function getNextRank(impactPoints) {
+  if (impactPoints >= 1000) return { rank: 'Legend', pointsNeeded: 0, isMaxRank: true };
+  if (impactPoints >= 500) return { rank: 'Legend', pointsNeeded: 1000 - impactPoints };
+  if (impactPoints >= 300) return { rank: 'Champion', pointsNeeded: 500 - impactPoints };
+  if (impactPoints >= 150) return { rank: 'Expert', pointsNeeded: 300 - impactPoints };
+  if (impactPoints >= 50) return { rank: 'Enthusiast', pointsNeeded: 150 - impactPoints };
+  return { rank: 'Beginner', pointsNeeded: 50 - impactPoints };
+}
+
+function calculateBadges(stats) {
+  const badges = [];
+  
+  // Challenge-related badges
+  if (stats.challengesCompleted >= 50) badges.push({ name: 'Challenge Legend', icon: '🏆', category: 'challenges' });
+  if (stats.challengesCompleted >= 25) badges.push({ name: 'Challenge Expert', icon: '🥇', category: 'challenges' });
+  if (stats.challengesCompleted >= 10) badges.push({ name: 'Challenge Master', icon: '🎖️', category: 'challenges' });
+  if (stats.challengesCompleted >= 5) badges.push({ name: 'Committed', icon: '💪', category: 'challenges' });
+  if (stats.challengesCompleted >= 1) badges.push({ name: 'First Steps', icon: '🌱', category: 'challenges' });
+  
+  // Event-related badges
+  if (stats.eventsAttended >= 10) badges.push({ name: 'Event Enthusiast', icon: '🎪', category: 'events' });
+  if (stats.eventsAttended >= 5) badges.push({ name: 'Community Leader', icon: '👥', category: 'events' });
+  if (stats.eventsAttended >= 1) badges.push({ name: 'Team Player', icon: '🤝', category: 'events' });
+  
+  // Knowledge-sharing badges
+  if (stats.tipsShared >= 20) badges.push({ name: 'Knowledge Expert', icon: '🧠', category: 'tips' });
+  if (stats.tipsShared >= 10) badges.push({ name: 'Knowledge Sharer', icon: '📚', category: 'tips' });
+  if (stats.tipsShared >= 5) badges.push({ name: 'Helper', icon: '💡', category: 'tips' });
+  
+  // Streak badges
+  if (stats.streak >= 30) badges.push({ name: 'Consistency King', icon: '👑', category: 'streak' });
+  if (stats.streak >= 14) badges.push({ name: 'Two Week Warrior', icon: '⚡', category: 'streak' });
+  if (stats.streak >= 7) badges.push({ name: 'Week Champion', icon: '🔥', category: 'streak' });
+  
+  // Impact badges
+  if (stats.totalImpactPoints >= 500) badges.push({ name: 'Impact Hero', icon: '🌍', category: 'impact' });
+  if (stats.totalImpactPoints >= 250) badges.push({ name: 'Impact Maker', icon: '🌟', category: 'impact' });
+  if (stats.totalImpactPoints >= 100) badges.push({ name: 'Impact Starter', icon: '✨', category: 'impact' });
+  
+  return badges;
+}
+
 module.exports = router;
