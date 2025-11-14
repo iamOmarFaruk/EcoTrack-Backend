@@ -20,6 +20,7 @@ const {
 // Import routes
 const userRoutes = require('./routes/users');
 const authRoutes = require('./routes/auth');
+const eventRoutes = require('./routes/events');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -333,6 +334,7 @@ app.get('/api', (req, res) => {
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/events', eventRoutes);
 
 // 404 handler for unknown routes
 app.use('*', notFound);

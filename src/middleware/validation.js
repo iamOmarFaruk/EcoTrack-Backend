@@ -77,30 +77,34 @@ const schemas = {
     'object.min': 'At least one field (title or content) must be provided for update'
   }),
 
-  // Event validation
   createEvent: Joi.object({
-    title: Joi.string().min(5).max(100).required(),
-    description: Joi.string().min(20).max(500).required(),
-    detailedDescription: Joi.string().min(50).max(2000),
-    date: Joi.date().iso().greater('now').required(),
-    endDate: Joi.date().iso().greater(Joi.ref('date')),
-    location: Joi.object({
-      address: Joi.string().min(5).max(200).required(),
-      city: Joi.string().min(2).max(100).required(),
-      state: Joi.string().min(2).max(100),
-      zipCode: Joi.string().max(20),
-      coordinates: Joi.object({
-        lat: Joi.number().min(-90).max(90),
-        lng: Joi.number().min(-180).max(180)
-      })
-    }).required(),
-    maxParticipants: Joi.number().integer().min(1).max(10000).required(),
-    organizerName: Joi.string().min(2).max(50),
-    category: Joi.string().valid('Community', 'Education', 'Environmental', 'Workshop', 'Social').default('Community'),
-    requirements: Joi.string().max(300),
-    benefits: Joi.string().max(300),
-    imageUrl: Joi.string().uri().allow('')
+    title: Joi.string().min(3).max(100).required().trim(),
+    description: Joi.string().min(10).max(200).required().trim(),
+    detailedDescription: Joi.string().min(50).max(2000).required().trim(),
+    date: Joi.date().iso().min(new Date(Date.now() + 24 * 60 * 60 * 1000)).required(),
+    location: Joi.string().min(3).max(100).required().trim(),
+    organizer: Joi.string().min(3).max(100).required().trim(),
+    capacity: Joi.number().integer().min(1).max(10000).required(),
+    duration: Joi.string().min(3).max(50).required().trim(),
+    requirements: Joi.string().min(10).max(500).required().trim(),
+    benefits: Joi.string().min(10).max(500).required().trim(),
+    image: Joi.string().uri().pattern(/^https:\/\/images\.unsplash\.com\//).allow('', null)
   }),
+
+  updateEvent: Joi.object({
+    title: Joi.string().min(3).max(100).trim(),
+    description: Joi.string().min(10).max(200).trim(),
+    detailedDescription: Joi.string().min(50).max(2000).trim(),
+    date: Joi.date().iso().min('now'),
+    location: Joi.string().min(3).max(100).trim(),
+    organizer: Joi.string().min(3).max(100).trim(),
+    capacity: Joi.number().integer().min(1).max(10000),
+    duration: Joi.string().min(3).max(50).trim(),
+    requirements: Joi.string().min(10).max(500).trim(),
+    benefits: Joi.string().min(10).max(500).trim(),
+    image: Joi.string().uri().pattern(/^https:\/\/images\.unsplash\.com\//).allow('', null),
+    status: Joi.string().valid('active', 'cancelled', 'completed')
+  }).min(1),
 
   // User profile validation
   updateUserProfile: Joi.object({
@@ -278,12 +282,12 @@ const querySchemas = {
   }),
 
   eventFilters: Joi.object({
-    status: Joi.string().valid('upcoming', 'completed', 'cancelled'),
-    location: Joi.string().max(100),
-    date: Joi.date().iso(),
-    category: Joi.string().valid('Community', 'Education', 'Environmental', 'Workshop', 'Social'),
     page: Joi.number().integer().min(1).default(1),
-    limit: Joi.number().integer().min(1).max(100).default(20)
+    limit: Joi.number().integer().min(1).max(50).default(10),
+    status: Joi.string().valid('active', 'cancelled', 'completed'),
+    search: Joi.string().max(100),
+    sortBy: Joi.string().valid('date', 'createdAt', 'capacity').default('date'),
+    order: Joi.string().valid('asc', 'desc').default('asc')
   })
 };
 
