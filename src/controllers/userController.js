@@ -260,31 +260,43 @@ class UserController {
         });
       }
 
-      // Mock user challenges data
-      let userChallenges = [
-        {
-          challengeId: '674b1a2f8e4d5c1a2b3c4d5e',
-          challengeTitle: 'Plastic-Free July Challenge',
-          status: 'Ongoing',
-          progress: 65,
-          joinDate: '2024-11-01T10:00:00Z',
-          impactAchieved: 12.5
-        },
-        {
-          challengeId: '674b1a2f8e4d5c1a2b3c4d5f',
-          challengeTitle: 'Energy Conservation Challenge',
-          status: 'Finished',
-          progress: 100,
-          joinDate: '2024-09-01T10:00:00Z',
-          completedDate: '2024-09-30T18:00:00Z',
-          impactAchieved: 45.2
-        }
-      ];
+      const { ObjectId } = require('mongodb');
+      const database = require('../config/database');
+      const db = database.getDb();
+
+      // Fetch user's challenges from database
+      const userChallengesData = await db.collection('userChallenges')
+        .find({ userId: id })
+        .toArray();
+
+      // Get challenge details for each user challenge
+      const challengeIds = userChallengesData.map(uc => uc.challengeId);
+      const challenges = await db.collection('challenges')
+        .find({ _id: { $in: challengeIds } })
+        .toArray();
+
+      // Map challenges with user data
+      let userChallenges = userChallengesData.map(uc => {
+        const challenge = challenges.find(c => c._id.toString() === uc.challengeId.toString());
+        return {
+          challengeId: uc.challengeId.toString(),
+          challengeTitle: challenge ? challenge.title : 'Unknown Challenge',
+          challengeCategory: challenge ? challenge.category : null,
+          status: uc.status,
+          progress: uc.progress,
+          joinDate: uc.joinDate,
+          completedDate: uc.completedDate,
+          impactAchieved: uc.impactAchieved,
+          notes: uc.notes
+        };
+      });
 
       // Filter by status if provided
       if (status && status !== 'all') {
         if (status === 'active') {
-          userChallenges = userChallenges.filter(c => c.status === 'Ongoing');
+          userChallenges = userChallenges.filter(c => 
+            c.status === 'Not Started' || c.status === 'Ongoing'
+          );
         } else if (status === 'completed') {
           userChallenges = userChallenges.filter(c => c.status === 'Finished');
         }
@@ -341,6 +353,129 @@ class UserController {
         data: {
           stats: enhancedStats,
           userId: id
+        }
+      });
+
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get current user's activities (joined challenges)
+   * GET /api/users/my-activities
+   * Protected route - requires authentication
+   */
+  async getMyActivities(req, res, next) {
+    try {
+      const firebaseUid = req.user.uid;
+      const { page = 1, limit = 20, status } = req.query;
+
+      // Verify user exists
+      const user = await userDb.findByFirebaseUid(firebaseUid);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            message: 'User not found',
+            code: 'USER_NOT_FOUND'
+          }
+        });
+      }
+
+      const { ObjectId } = require('mongodb');
+      const database = require('../config/database');
+      const db = database.getDb();
+
+      // Fetch user's joined challenges from userChallenges collection
+      let query = { userId: firebaseUid };
+      
+      // Filter by status if provided
+      if (status) {
+        if (status === 'active') {
+          query.status = { $in: ['Not Started', 'Ongoing'] };
+        } else if (status === 'completed') {
+          query.status = 'Finished';
+        }
+      }
+
+      const userChallengesData = await db.collection('userChallenges')
+        .find(query)
+        .sort({ joinDate: -1 })
+        .toArray();
+
+      // Get challenge details for each user challenge
+      const challengeIds = userChallengesData.map(uc => uc.challengeId);
+      const challenges = await db.collection('challenges')
+        .find({ _id: { $in: challengeIds } })
+        .toArray();
+
+      // Map challenges with user data
+      const joinedChallenges = userChallengesData.map(uc => {
+        const challenge = challenges.find(c => c._id.toString() === uc.challengeId.toString());
+        
+        if (!challenge) {
+          return null;
+        }
+
+        return {
+          _id: uc._id,
+          challenge: {
+            _id: challenge._id,
+            title: challenge.title,
+            category: challenge.category,
+            description: challenge.description,
+            difficulty: challenge.difficulty,
+            duration: challenge.duration,
+            startDate: challenge.startDate,
+            endDate: challenge.endDate,
+            imageUrl: challenge.imageUrl,
+            impactMetric: challenge.impactMetric
+          },
+          userProgress: {
+            status: uc.status,
+            progress: uc.progress || 0,
+            joinDate: uc.joinDate,
+            completedDate: uc.completedDate,
+            impactAchieved: uc.impactAchieved,
+            notes: uc.notes
+          }
+        };
+      }).filter(item => item !== null);
+
+      // Pagination
+      const startIndex = (parseInt(page) - 1) * parseInt(limit);
+      const endIndex = startIndex + parseInt(limit);
+      const paginatedActivities = joinedChallenges.slice(startIndex, endIndex);
+
+      const totalActivities = joinedChallenges.length;
+      const totalPages = Math.ceil(totalActivities / parseInt(limit));
+
+      // Calculate summary stats
+      const activeChallenges = joinedChallenges.filter(c => 
+        c.userProgress.status === 'Not Started' || c.userProgress.status === 'Ongoing'
+      ).length;
+      const completedChallenges = joinedChallenges.filter(c => 
+        c.userProgress.status === 'Finished'
+      ).length;
+
+      res.status(200).json({
+        success: true,
+        data: {
+          activities: paginatedActivities,
+          summary: {
+            total: totalActivities,
+            active: activeChallenges,
+            completed: completedChallenges
+          }
+        },
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: totalActivities,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1
         }
       });
 

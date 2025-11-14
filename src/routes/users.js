@@ -8,6 +8,9 @@ const { authenticateFirebaseToken, optionalFirebaseAuth } = require('../middlewa
  * Base path: /api/users
  */
 
+// GET /api/users/my-activities - Get current user's activities (joined challenges) - Protected
+router.get('/my-activities', authenticateFirebaseToken, userController.getMyActivities);
+
 // GET /api/users/profile - Get current user profile (requires authentication)
 router.get('/profile', authenticateFirebaseToken, userController.getCurrentUserProfile);
 
