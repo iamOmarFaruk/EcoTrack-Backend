@@ -3,14 +3,30 @@
                               EcoTrack Application
 ================================================================================
 
-BASE URL: http://localhost:5000/api/events
+BASE URL: http://localhost:5001/api/events
 (Update with your production URL when deployed)
 
 Last Updated: November 14, 2025
 
 
 ================================================================================
-1. AUTHENTICATION
+1. QUICK START
+================================================================================
+
+Server Information:
+  Base URL: http://localhost:5001
+  Health Check: http://localhost:5001/health
+  API Documentation: http://localhost:5001/api
+  Events API: http://localhost:5001/api/events
+
+Before starting, verify the server is running:
+  1. Open browser: http://localhost:5001/health
+  2. Check API docs: http://localhost:5001/api
+  3. You should see JSON response confirming server is running
+
+
+================================================================================
+2. AUTHENTICATION
 ================================================================================
 
 All authenticated endpoints require Firebase ID token in the Authorization header:
@@ -23,7 +39,7 @@ How to get Firebase ID token (Frontend):
   const token = await user.getIdToken();
 
 Example API Call:
-  fetch('http://localhost:5000/api/events', {
+  fetch('http://localhost:5001/api/events', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -34,7 +50,7 @@ Example API Call:
 
 
 ================================================================================
-2. API ENDPOINTS - COMPLETE LIST
+3. API ENDPOINTS - COMPLETE LIST
 ================================================================================
 
 PUBLIC ENDPOINTS (No Authentication Required)
@@ -55,7 +71,7 @@ AUTHENTICATED ENDPOINTS (Require Firebase Token)
 
 
 ================================================================================
-3. ENDPOINT DETAILS
+4. ENDPOINT DETAILS
 ================================================================================
 
 ------------------------------------------------------------------------------
@@ -64,7 +80,7 @@ ENDPOINT 1: GET /api/events
 Description: Get all active events with pagination and search
 Access: Public (no authentication required)
 
-URL: GET http://localhost:5000/api/events
+URL: GET http://localhost:5001/api/events
 
 Query Parameters:
   - page: number (default: 1)
@@ -127,7 +143,7 @@ ENDPOINT 2: GET /api/events/:id
 Description: Get single event with full details
 Access: Public (optional authentication for isJoined/isCreator info)
 
-URL: GET http://localhost:5000/api/events/{event-id}
+URL: GET http://localhost:5001/api/events/{event-id}
 
 Example Request:
   GET /api/events/city-tree-planting-2025-1731581400
@@ -179,7 +195,7 @@ ENDPOINT 3: POST /api/events
 Description: Create new event
 Access: Authenticated users only
 
-URL: POST http://localhost:5000/api/events
+URL: POST http://localhost:5001/api/events
 Headers:
   Authorization: Bearer {firebase_token}
   Content-Type: application/json
@@ -257,7 +273,7 @@ ENDPOINT 4: PUT /api/events/:id
 Description: Update event (creator only)
 Access: Event creator only
 
-URL: PUT http://localhost:5000/api/events/{event-id}
+URL: PUT http://localhost:5001/api/events/{event-id}
 Headers:
   Authorization: Bearer {firebase_token}
   Content-Type: application/json
@@ -304,7 +320,7 @@ ENDPOINT 5: DELETE /api/events/:id
 Description: Delete event (creator only)
 Access: Event creator only
 
-URL: DELETE http://localhost:5000/api/events/{event-id}
+URL: DELETE http://localhost:5001/api/events/{event-id}
 Headers:
   Authorization: Bearer {firebase_token}
 
@@ -339,7 +355,7 @@ ENDPOINT 6: POST /api/events/:id/join
 Description: Join an event
 Access: Authenticated users only
 
-URL: POST http://localhost:5000/api/events/{event-id}/join
+URL: POST http://localhost:5001/api/events/{event-id}/join
 Headers:
   Authorization: Bearer {firebase_token}
 
@@ -403,7 +419,7 @@ ENDPOINT 7: POST /api/events/:id/leave
 Description: Leave an event
 Access: Authenticated users only
 
-URL: POST http://localhost:5000/api/events/{event-id}/leave
+URL: POST http://localhost:5001/api/events/{event-id}/leave
 Headers:
   Authorization: Bearer {firebase_token}
 
@@ -444,7 +460,7 @@ ENDPOINT 8: GET /api/events/my-events
 Description: Get events created by logged-in user
 Access: Authenticated users only
 
-URL: GET http://localhost:5000/api/events/my-events
+URL: GET http://localhost:5001/api/events/my-events
 Headers:
   Authorization: Bearer {firebase_token}
 
@@ -479,7 +495,7 @@ ENDPOINT 9: GET /api/events/my-joined
 Description: Get events joined by logged-in user
 Access: Authenticated users only
 
-URL: GET http://localhost:5000/api/events/my-joined
+URL: GET http://localhost:5001/api/events/my-joined
 Headers:
   Authorization: Bearer {firebase_token}
 
@@ -518,7 +534,7 @@ ENDPOINT 10: GET /api/events/:id/participants
 Description: Get participant list for an event
 Access: Public (limited info unless you're the creator)
 
-URL: GET http://localhost:5000/api/events/{event-id}/participants
+URL: GET http://localhost:5001/api/events/{event-id}/participants
 
 Response 200 (if you're the creator):
 {
@@ -600,7 +616,7 @@ Example 1: Fetch All Events
 const fetchEvents = async (page = 1, search = '') => {
   try {
     const response = await fetch(
-      `http://localhost:5000/api/events?page=${page}&limit=10&search=${search}`
+      `http://localhost:5001/api/events?page=${page}&limit=10&search=${search}`
     );
     const data = await response.json();
     
@@ -621,7 +637,7 @@ const createEvent = async (eventData) => {
     const user = firebase.auth().currentUser;
     const token = await user.getIdToken();
     
-    const response = await fetch('http://localhost:5000/api/events', {
+    const response = await fetch('http://localhost:5001/api/events', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -654,7 +670,7 @@ const joinEvent = async (eventId) => {
     const token = await user.getIdToken();
     
     const response = await fetch(
-      `http://localhost:5000/api/events/${eventId}/join`,
+      `http://localhost:5001/api/events/${eventId}/join`,
       {
         method: 'POST',
         headers: {
@@ -685,7 +701,7 @@ const getMyEvents = async () => {
     const token = await user.getIdToken();
     
     const response = await fetch(
-      'http://localhost:5000/api/events/my-events',
+      'http://localhost:5001/api/events/my-events',
       {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -713,7 +729,7 @@ const updateEvent = async (eventId, updateData) => {
     const token = await user.getIdToken();
     
     const response = await fetch(
-      `http://localhost:5000/api/events/${eventId}`,
+      `http://localhost:5001/api/events/${eventId}`,
       {
         method: 'PUT',
         headers: {
@@ -849,10 +865,10 @@ You can test all endpoints using:
   - Browser DevTools
 
 Health Check:
-  GET http://localhost:5000/health
+  GET http://localhost:5001/health
 
 API Documentation:
-  GET http://localhost:5000/api
+  GET http://localhost:5001/api
 
 
 ================================================================================
@@ -860,15 +876,139 @@ API Documentation:
 ================================================================================
 
 Backend runs on:
-  http://localhost:5000
+  http://localhost:5001
 
 API Base URL:
-  http://localhost:5000/api
+  http://localhost:5001/api
 
 Events Endpoint:
-  http://localhost:5000/api/events
+  http://localhost:5001/api/events
+
+Health Check Endpoint:
+  http://localhost:5001/health
+
+API Documentation Endpoint:
+  http://localhost:5001/api
 
 Update these URLs for production deployment.
+
+
+================================================================================
+9.1 HEALTH CHECK ENDPOINT
+================================================================================
+
+URL: GET http://localhost:5001/health
+Access: Public (no authentication required)
+
+Description: Check if the API server and database are running properly
+
+Response 200:
+{
+  "success": true,
+  "message": "EcoTrack API is running!",
+  "timestamp": "2025-11-14T22:05:00.000Z",
+  "environment": "development",
+  "database": "Connected"
+}
+
+Usage:
+  - Use this endpoint to verify server is running
+  - Check database connection status
+  - Monitor API uptime
+  - Useful for health monitoring and load balancers
+
+
+================================================================================
+9.2 API DOCUMENTATION ENDPOINT
+================================================================================
+
+URL: GET http://localhost:5001/api
+Access: Public (no authentication required)
+
+Description: Get comprehensive API documentation with all available endpoints
+
+Response 200:
+{
+  "success": true,
+  "message": "EcoTrack API Documentation",
+  "version": "1.0.0",
+  "baseUrl": "http://localhost:5001/api",
+  "timestamp": "2025-11-14T22:05:00.000Z",
+  "routes": {
+    "authentication": {
+      "description": "Firebase Authentication endpoints",
+      "baseRoute": "/api/auth",
+      "endpoints": [...]
+    },
+    "users": {
+      "description": "User profile and activity endpoints",
+      "baseRoute": "/api/users",
+      "endpoints": [...]
+    },
+    "events": {
+      "description": "Event management endpoints",
+      "baseRoute": "/api/events",
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/events",
+          "description": "List all events with pagination",
+          "access": "Public"
+        },
+        {
+          "method": "POST",
+          "path": "/api/events",
+          "description": "Create new event",
+          "access": "Private (requires Firebase authentication)"
+        },
+        ... all 10 event endpoints listed here ...
+      ]
+    }
+  },
+  "security": {
+    "authentication": {
+      "type": "Firebase Authentication",
+      "description": "Use Firebase ID tokens in Authorization header",
+      "format": "Bearer <firebase_id_token>"
+    },
+    "rateLimiting": {
+      "window": "15 minutes",
+      "maxRequests": 100,
+      "scope": "Per IP address"
+    }
+  },
+  "responseFormat": {
+    "success": {
+      "structure": {
+        "success": true,
+        "data": "response_data",
+        "message": "optional_message"
+      }
+    },
+    "error": {
+      "structure": {
+        "success": false,
+        "error": {
+          "message": "error_description",
+          "code": "optional_error_code"
+        }
+      }
+    }
+  }
+}
+
+Usage:
+  - View all available API endpoints
+  - See request/response formats
+  - Check authentication requirements
+  - Understand rate limiting rules
+  - Get example requests for each endpoint
+
+Recommended for:
+  - New developers joining the project
+  - API integration testing
+  - Understanding available features
+  - Quick reference during development
 
 
 ================================================================================
