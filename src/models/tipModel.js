@@ -101,7 +101,7 @@ const tipDb = {
         },
         { returnDocument: 'after' }
       );
-      return result.value;
+      return result.value || result;
     } catch (error) {
       throw new Error(`Error updating tip: ${error.message}`);
     }
@@ -139,8 +139,15 @@ const tipDb = {
         { returnDocument: 'after' }
       );
       
-      return result.value;
+      // Handle both old and new MongoDB driver return formats
+      const updatedTip = result.value || result;
+      if (!updatedTip) {
+        throw new Error('Failed to update tip');
+      }
+      
+      return updatedTip;
     } catch (error) {
+      console.error('Upvote error:', error);
       throw new Error(`Error upvoting tip: ${error.message}`);
     }
   }

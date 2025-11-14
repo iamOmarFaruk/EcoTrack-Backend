@@ -268,7 +268,9 @@ class TipController {
       const { id } = req.params;
       const userId = req.user.uid;
 
+      console.log(`Upvoting tip ${id} by user ${userId}`);
       const updatedTip = await tipDb.upvote(id, userId);
+      console.log('Upvote result:', updatedTip);
 
       res.status(200).json({
         success: true,
@@ -280,6 +282,8 @@ class TipController {
       });
 
     } catch (error) {
+      console.error('Upvote controller error:', error);
+      
       if (error.message.includes('Tip not found')) {
         return res.status(404).json({
           success: false,
@@ -290,7 +294,13 @@ class TipController {
         });
       }
 
-      next(error);
+      res.status(500).json({
+        success: false,
+        error: {
+          message: 'Internal server error during upvote',
+          details: error.message
+        }
+      });
     }
   }
 
