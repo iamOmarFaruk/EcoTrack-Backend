@@ -1,0 +1,391 @@
+# Challenge API - Quick Reference
+
+## Base URL
+`/api/challenges`
+
+## Endpoints Summary
+
+### Public Endpoints (No Authentication)
+1. **GET** `/api/challenges` - List all challenges with pagination and filters
+2. **GET** `/api/challenges/:id` - Get single challenge details
+3. **GET** `/api/challenges/:id/participants` - Get participant count
+
+### Authenticated Endpoints (Require Firebase Token)
+4. **POST** `/api/challenges` - Create new challenge
+5. **PUT** `/api/challenges/:id` - Update challenge (creator only)
+6. **DELETE** `/api/challenges/:id` - Delete challenge (creator only)
+7. **POST** `/api/challenges/:id/join` - Join a challenge
+8. **POST** `/api/challenges/:id/leave` - Leave a challenge
+9. **GET** `/api/challenges/my/created` - Get my created challenges
+10. **GET** `/api/challenges/my/joined` - Get my joined challenges
+
+---
+
+## 1. GET /api/challenges
+Get all challenges with pagination, filtering, and search.
+
+**Access:** Public
+
+**Query Parameters:**
+- `page` (optional): Page number (default: 1)
+- `limit` (optional): Items per page (default: 10, max: 50)
+- `search` (optional): Text search in title, description, category
+- `status` (optional): Filter by status ("active", "completed", "cancelled")
+- `category` (optional): Filter by category
+- `featured` (optional): Filter featured challenges ("true" or "false")
+- `sortBy` (optional): Sort field ("startDate", "endDate", "participants", "createdAt")
+- `order` (optional): Sort order ("asc" or "desc", default: "desc")
+
+**Example Request:**
+```bash
+curl http://localhost:5000/api/challenges?page=1&limit=10&category=Waste%20Reduction&featured=true
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [...],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 25,
+    "pages": 3
+  }
+}
+```
+
+---
+
+## 2. GET /api/challenges/:id
+Get single challenge with full details.
+
+**Access:** Public (shows additional fields if authenticated)
+
+**Example Request:**
+```bash
+curl http://localhost:5000/api/challenges/plastic-free-week-2025-1731581400
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "plastic-free-week-2025-1731581400",
+    "category": "Waste Reduction",
+    "title": "Plastic-Free Week",
+    "shortDescription": "Avoid single-use plastics...",
+    "image": "https://images.unsplash.com/...",
+    "registeredParticipants": 1240,
+    "duration": "7 days",
+    "startDate": "2025-03-01",
+    "endDate": "2025-03-08",
+    "status": "active",
+    "isCreator": false,
+    "isJoined": true
+  }
+}
+```
+
+---
+
+## 3. POST /api/challenges
+Create new challenge.
+
+**Access:** Authenticated
+
+**Headers:**
+```
+Authorization: Bearer <firebase_token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "category": "Waste Reduction",
+  "title": "Plastic-Free Week",
+  "shortDescription": "Avoid single-use plastics for a week and share your swaps.",
+  "detailedDescription": "Join us in this week-long challenge...",
+  "image": "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=800&q=80",
+  "duration": "7 days",
+  "impact": "Bottles avoided",
+  "co2Saved": "15 kg",
+  "startDate": "2025-03-01",
+  "endDate": "2025-03-08",
+  "featured": false
+}
+```
+
+**Validation Rules:**
+- `category`: Required, must be one of: "Food", "Waste Reduction", "Energy Conservation", "Water", "Community"
+- `title`: Required, 5-100 characters, must be unique
+- `shortDescription`: Required, 20-250 characters
+- `detailedDescription`: Optional, max 2000 characters
+- `image`: Required, valid HTTPS URL (max 500 chars)
+- `duration`: Required, 2-50 characters
+- `impact`: Required, 3-100 characters
+- `co2Saved`: Optional, 2-50 characters
+- `startDate`: Required, ISO date (YYYY-MM-DD), must be today or future
+- `endDate`: Required, ISO date (YYYY-MM-DD), must be after startDate
+- `featured`: Optional, boolean (default: false)
+
+**Response (201):**
+```json
+{
+  "success": true,
+  "message": "Challenge created successfully",
+  "data": {...}
+}
+```
+
+---
+
+## 4. PUT /api/challenges/:id
+Update challenge (creator only).
+
+**Access:** Challenge creator only
+
+**Headers:**
+```
+Authorization: Bearer <firebase_token>
+Content-Type: application/json
+```
+
+**Request Body:** (all fields optional)
+```json
+{
+  "title": "Updated Title",
+  "shortDescription": "Updated description",
+  "status": "active"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Challenge updated successfully",
+  "data": {...}
+}
+```
+
+---
+
+## 5. DELETE /api/challenges/:id
+Delete challenge (creator only). If challenge has participants, it will be cancelled instead.
+
+**Access:** Challenge creator only
+
+**Headers:**
+```
+Authorization: Bearer <firebase_token>
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Challenge deleted successfully"
+}
+```
+
+Or if has participants:
+```json
+{
+  "success": true,
+  "message": "Challenge cancelled successfully (has participants)"
+}
+```
+
+---
+
+## 6. POST /api/challenges/:id/join
+Join a challenge.
+
+**Access:** Authenticated
+
+**Headers:**
+```
+Authorization: Bearer <firebase_token>
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Successfully joined the challenge",
+  "data": {...}
+}
+```
+
+**Error Responses:**
+- 400: Already joined, creator cannot join, or challenge not active
+- 404: Challenge not found
+
+---
+
+## 7. POST /api/challenges/:id/leave
+Leave a challenge.
+
+**Access:** Authenticated
+
+**Headers:**
+```
+Authorization: Bearer <firebase_token>
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Successfully left the challenge",
+  "data": {...}
+}
+```
+
+---
+
+## 8. GET /api/challenges/my/created
+Get challenges created by logged-in user.
+
+**Access:** Authenticated
+
+**Headers:**
+```
+Authorization: Bearer <firebase_token>
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [...],
+  "count": 3
+}
+```
+
+---
+
+## 9. GET /api/challenges/my/joined
+Get challenges joined by logged-in user.
+
+**Access:** Authenticated
+
+**Headers:**
+```
+Authorization: Bearer <firebase_token>
+```
+
+**Query Parameters:**
+- `status` (optional): Filter by participant status ("joined" or "left")
+- `includeCompleted` (optional): Include completed challenges (default: false)
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [...],
+  "count": 5
+}
+```
+
+---
+
+## 10. GET /api/challenges/:id/participants
+Get participant count (full list if you're the creator).
+
+**Access:** Public (limited info), Creator (full details)
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "count": 1240
+}
+```
+
+Or if creator:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "userId": "firebase_uid_123",
+      "joinedAt": "2025-03-01T10:00:00Z",
+      "status": "joined"
+    }
+  ],
+  "count": 1240
+}
+```
+
+---
+
+## Categories
+Valid challenge categories (case-sensitive):
+1. Food
+2. Waste Reduction
+3. Energy Conservation
+4. Water
+5. Community
+
+---
+
+## Status Values
+- `active`: Challenge is currently running or upcoming
+- `completed`: Challenge has ended
+- `cancelled`: Challenge was cancelled by creator
+
+---
+
+## Error Response Format
+```json
+{
+  "success": false,
+  "message": "Error description",
+  "errors": ["Field error 1", "Field error 2"]
+}
+```
+
+---
+
+## Testing the API
+
+### Test Create Challenge:
+```bash
+curl -X POST http://localhost:5000/api/challenges \
+  -H "Authorization: Bearer YOUR_FIREBASE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "category": "Waste Reduction",
+    "title": "Test Challenge",
+    "shortDescription": "This is a test challenge for API testing purposes",
+    "image": "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=800&q=80",
+    "duration": "7 days",
+    "impact": "Bottles saved",
+    "startDate": "2025-12-01",
+    "endDate": "2025-12-08"
+  }'
+```
+
+### Test Get All Challenges:
+```bash
+curl http://localhost:5000/api/challenges?limit=5
+```
+
+### Test Join Challenge:
+```bash
+curl -X POST http://localhost:5000/api/challenges/CHALLENGE_ID/join \
+  -H "Authorization: Bearer YOUR_FIREBASE_TOKEN"
+```
+
+---
+
+## Notes
+- All dates use ISO format (YYYY-MM-DD)
+- Timestamps use ISO 8601 format with timezone
+- Participant counting uses atomic operations
+- Challenge creators cannot join their own challenges
+- Deleting a challenge with participants automatically cancels it instead

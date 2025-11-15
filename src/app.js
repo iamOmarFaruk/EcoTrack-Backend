@@ -22,6 +22,7 @@ const userRoutes = require('./routes/users');
 const authRoutes = require('./routes/auth');
 const eventRoutes = require('./routes/events');
 const tipRoutes = require('./routes/tips');
+const challengeRoutes = require('./routes/challenges');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -433,6 +434,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/tips', tipRoutes);
+app.use('/api/challenges', challengeRoutes);
 
 // 404 handler for unknown routes
 app.use('*', notFound);
