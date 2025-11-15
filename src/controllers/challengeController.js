@@ -11,6 +11,7 @@ const {
   getMyJoinedChallenges,
   getChallengeParticipants,
   isTitleUnique,
+  getCommunityImpactTotals,
 } = require("../models/challengeModel");
 
 /**
@@ -89,17 +90,43 @@ function validateChallengeData(data, isUpdate = false) {
   }
 
   // Impact validation
-  if (!isUpdate || data.impact !== undefined) {
-    if (!data.impact) {
-      errors.push("Impact is required");
-    } else if (data.impact.trim().length < 3 || data.impact.trim().length > 100) {
-      errors.push("Impact must be between 3 and 100 characters");
+  const impact = data.communityImpact || {};
+
+  const toNumber = (value) => {
+    if (value === undefined || value === null || value === "") return 0;
+    const num = Number(value);
+    return Number.isFinite(num) && num >= 0 ? num : NaN;
+  };
+
+  if (!isUpdate) {
+    const requiredFields = [
+      "co2SavedKg",
+      "plasticReducedKg",
+      "waterSavedL",
+      "energySavedKwh",
+    ];
+
+    for (const field of requiredFields) {
+      if (impact[field] === undefined) {
+        errors.push(`communityImpact.${field} is required`);
+      }
     }
   }
 
-  // CO2 saved validation (optional)
-  if (data.co2Saved && (data.co2Saved.trim().length < 2 || data.co2Saved.trim().length > 50)) {
-    errors.push("CO2 saved must be between 2 and 50 characters");
+  const numericFields = {
+    co2SavedKg: impact.co2SavedKg,
+    plasticReducedKg: impact.plasticReducedKg,
+    waterSavedL: impact.waterSavedL,
+    energySavedKwh: impact.energySavedKwh,
+  };
+
+  for (const [field, value] of Object.entries(numericFields)) {
+    if (value !== undefined && value !== null && value !== "") {
+      const num = toNumber(value);
+      if (Number.isNaN(num)) {
+        errors.push(`communityImpact.${field} must be a non-negative number`);
+      }
+    }
   }
 
   // Date validation
@@ -568,6 +595,32 @@ exports.getChallengeParticipantsList = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch participants",
+    });
+  }
+};
+
+/**
+ * GET /api/challenges/community-impact
+ * Get aggregated community impact totals across all challenges
+ */
+exports.getCommunityImpactSummary = async (req, res) => {
+  try {
+    const totals = await getCommunityImpactTotals();
+
+    res.json({
+      success: true,
+      data: {
+        co2SavedKg: totals.co2SavedKg,
+        plasticReducedKg: totals.plasticReducedKg,
+        waterSavedL: totals.waterSavedL,
+        energySavedKwh: totals.energySavedKwh,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching community impact totals:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch community impact totals",
     });
   }
 };

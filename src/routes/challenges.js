@@ -12,6 +12,7 @@ const {
   getMyCreatedChallenges,
   getMyJoinedChallengesList,
   getChallengeParticipantsList,
+  getCommunityImpactSummary,
 } = require("../controllers/challengeController");
 
 // User-specific routes (must come BEFORE /:id routes to avoid conflicts)
@@ -20,6 +21,7 @@ router.get("/my/joined", authenticateFirebaseToken, getMyJoinedChallengesList);
 
 // Public routes (no authentication required)
 router.get("/", getAllChallenges);
+router.get("/community-impact/summary", getCommunityImpactSummary);
 router.get("/:id", optionalFirebaseAuth, getChallengeDetails);
 router.get("/:id/participants", optionalFirebaseAuth, getChallengeParticipantsList);
 

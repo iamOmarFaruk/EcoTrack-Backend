@@ -263,6 +263,9 @@ class TipModel {
       return { success: false, error: 'Tip not found', code: 'NOT_FOUND' };
     }
 
+    // Ensure upvotes is always an array to avoid runtime errors
+    const existingUpvotes = Array.isArray(tip.upvotes) ? tip.upvotes : [];
+
     // Check if user is trying to upvote their own tip
     if (tip.authorId === userId) {
       return { 
@@ -273,7 +276,7 @@ class TipModel {
     }
 
     // Check upvote limit (100 per user per tip)
-    const userUpvotesCount = tip.upvotes.filter(v => v.userId === userId).length;
+    const userUpvotesCount = existingUpvotes.filter(v => v.userId === userId).length;
     if (userUpvotesCount >= 100) {
       return {
         success: false,
@@ -297,12 +300,14 @@ class TipModel {
       { returnDocument: 'after' }
     );
 
-    // Calculate user's total upvotes on this tip
-    const updatedUserUpvotesCount = result.value.upvotes.filter(v => v.userId === userId).length;
+    // Safely handle case where result.value or upvotes might be missing
+    const updatedTip = result.value || {};
+    const updatedUpvotes = Array.isArray(updatedTip.upvotes) ? updatedTip.upvotes : [];
+    const updatedUserUpvotesCount = updatedUpvotes.filter(v => v.userId === userId).length;
 
     return {
       success: true,
-      tip: this.computeFields(result.value),
+      tip: this.computeFields(updatedTip),
       userUpvotesCount: updatedUserUpvotesCount
     };
   }
@@ -334,8 +339,20 @@ class TipModel {
   static computeFields(tip, userId = null) {
     if (!tip) return null;
 
+    // Normalize dates to avoid crashes if stored as strings or missing
+    const createdAt = tip.createdAt instanceof Date
+      ? tip.createdAt
+      : new Date(tip.createdAt || Date.now());
+
+    const updatedAt = tip.updatedAt instanceof Date
+      ? tip.updatedAt
+      : createdAt;
+
+    tip.createdAt = createdAt;
+    tip.updatedAt = updatedAt;
+
     // Compute isEdited
-    tip.isEdited = tip.updatedAt.getTime() !== tip.createdAt.getTime();
+    tip.isEdited = updatedAt.getTime() !== createdAt.getTime();
 
     // Compute isOwner if userId provided
     if (userId) {

@@ -67,8 +67,14 @@ async function createChallenge(challengeData, userId) {
     participants: [],
     registeredParticipants: 0,
     duration: challengeData.duration.trim(),
-    impact: challengeData.impact.trim(),
-    co2Saved: challengeData.co2Saved ? challengeData.co2Saved.trim() : "",
+    communityImpact: {
+      co2SavedKg: Number(challengeData.communityImpact?.co2SavedKg) || 0,
+      plasticReducedKg:
+        Number(challengeData.communityImpact?.plasticReducedKg) || 0,
+      waterSavedL: Number(challengeData.communityImpact?.waterSavedL) || 0,
+      energySavedKwh:
+        Number(challengeData.communityImpact?.energySavedKwh) || 0,
+    },
     startDate: challengeData.startDate,
     endDate: challengeData.endDate,
     featured: challengeData.featured || false,
@@ -363,6 +369,34 @@ async function getMyJoinedChallenges(userId, filters = {}) {
 }
 
 /**
+ * Aggregate community impact across all challenges
+ */
+async function getCommunityImpactTotals() {
+  const collection = getChallengesCollection();
+
+  const [result] = await collection
+    .aggregate([
+      {
+        $group: {
+          _id: null,
+          totalCo2SavedKg: { $sum: "$communityImpact.co2SavedKg" },
+          totalPlasticReducedKg: { $sum: "$communityImpact.plasticReducedKg" },
+          totalWaterSavedL: { $sum: "$communityImpact.waterSavedL" },
+          totalEnergySavedKwh: { $sum: "$communityImpact.energySavedKwh" },
+        },
+      },
+    ])
+    .toArray();
+
+  return {
+    co2SavedKg: result?.totalCo2SavedKg || 0,
+    plasticReducedKg: result?.totalPlasticReducedKg || 0,
+    waterSavedL: result?.totalWaterSavedL || 0,
+    energySavedKwh: result?.totalEnergySavedKwh || 0,
+  };
+}
+
+/**
  * Get challenge participants
  */
 async function getChallengeParticipants(id, userId = null) {
@@ -419,4 +453,5 @@ module.exports = {
   getMyJoinedChallenges,
   getChallengeParticipants,
   isTitleUnique,
+  getCommunityImpactTotals,
 };
