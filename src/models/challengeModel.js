@@ -1,4 +1,4 @@
-const { getDb } = require("../config/database");
+const database = require("../config/database");
 const { ObjectId } = require("mongodb");
 
 const COLLECTION_NAME = "challenges";
@@ -44,7 +44,7 @@ function generateChallengeId(title) {
  * Get challenges collection
  */
 function getChallengesCollection() {
-  const db = getDb();
+  const db = database.getDb();
   return db.collection(COLLECTION_NAME);
 }
 
