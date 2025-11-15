@@ -21,6 +21,7 @@ const {
 const userRoutes = require('./routes/users');
 const authRoutes = require('./routes/auth');
 const eventRoutes = require('./routes/events');
+const tipRoutes = require('./routes/tips');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -259,6 +260,102 @@ app.get('/api', (req, res) => {
             params: { id: 'string (user ID)' }
           }
         ]
+      },
+
+      // Tips Management Routes
+      tips: {
+        description: 'Eco-friendly tips sharing and upvoting',
+        baseRoute: '/api/tips',
+        endpoints: [
+          {
+            method: 'GET',
+            path: '/api/tips',
+            description: 'Get all tips with pagination and filtering',
+            access: 'Public',
+            query: {
+              page: 'number (default: 1)',
+              limit: 'number (default: 20, max: 100)',
+              sortBy: 'string (createdAt, upvoteCount)',
+              order: 'string (asc, desc)',
+              search: 'string (text search)',
+              authorId: 'string (filter by author)'
+            }
+          },
+          {
+            method: 'GET',
+            path: '/api/tips/trending',
+            description: 'Get trending tips (most upvoted recently)',
+            access: 'Public',
+            query: {
+              days: 'number (default: 7, max: 30)',
+              limit: 'number (default: 10, max: 50)'
+            }
+          },
+          {
+            method: 'GET',
+            path: '/api/tips/my-tips',
+            description: 'Get tips created by authenticated user',
+            access: 'Private (requires authentication)',
+            headers: { Authorization: 'Bearer <firebase_token>' },
+            query: {
+              page: 'number (default: 1)',
+              limit: 'number (default: 20)',
+              sortBy: 'string (createdAt, upvoteCount)',
+              order: 'string (asc, desc)'
+            }
+          },
+          {
+            method: 'POST',
+            path: '/api/tips',
+            description: 'Create new tip',
+            access: 'Private (requires authentication)',
+            headers: { Authorization: 'Bearer <firebase_token>' },
+            body: {
+              title: 'string (required, 5-100 chars)',
+              content: 'string (required, 20-500 chars)'
+            }
+          },
+          {
+            method: 'PUT',
+            path: '/api/tips/:id',
+            description: 'Update tip (author only)',
+            access: 'Private (tip author only)',
+            headers: { Authorization: 'Bearer <firebase_token>' },
+            params: { id: 'string (tip ID)' },
+            body: {
+              title: 'string (optional, 5-100 chars)',
+              content: 'string (optional, 20-500 chars)'
+            }
+          },
+          {
+            method: 'PATCH',
+            path: '/api/tips/:id',
+            description: 'Partially update tip (author only)',
+            access: 'Private (tip author only)',
+            headers: { Authorization: 'Bearer <firebase_token>' },
+            params: { id: 'string (tip ID)' },
+            body: {
+              title: 'string (optional, 5-100 chars)',
+              content: 'string (optional, 20-500 chars)'
+            }
+          },
+          {
+            method: 'DELETE',
+            path: '/api/tips/:id',
+            description: 'Delete tip (author only)',
+            access: 'Private (tip author only)',
+            headers: { Authorization: 'Bearer <firebase_token>' },
+            params: { id: 'string (tip ID)' }
+          },
+          {
+            method: 'POST',
+            path: '/api/tips/:id/upvote',
+            description: 'Upvote a tip (max 100 times per user per tip)',
+            access: 'Private (requires authentication, cannot upvote own tips)',
+            headers: { Authorization: 'Bearer <firebase_token>' },
+            params: { id: 'string (tip ID)' }
+          }
+        ]
       }
     },
 
@@ -335,6 +432,7 @@ app.get('/api', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/events', eventRoutes);
+app.use('/api/tips', tipRoutes);
 
 // 404 handler for unknown routes
 app.use('*', notFound);

@@ -1,0 +1,1156 @@
+================================================================================
+                     TIPS MANAGEMENT API - FRONTEND DOCUMENTATION
+                              EcoTrack Application
+================================================================================
+
+BASE URL: http://localhost:5001/api/tips
+(Update with your production URL when deployed)
+
+Last Updated: November 15, 2025
+
+
+================================================================================
+1. QUICK START
+================================================================================
+
+Server Information:
+  Base URL: http://localhost:5001
+  Health Check: http://localhost:5001/health
+  API Documentation: http://localhost:5001/api
+  Tips API: http://localhost:5001/api/tips
+
+Before starting, verify the server is running:
+  1. Open browser: http://localhost:5001/health
+  2. Check API docs: http://localhost:5001/api
+  3. You should see JSON response confirming server is running
+
+
+================================================================================
+2. AUTHENTICATION
+================================================================================
+
+All authenticated endpoints require Firebase ID token in the Authorization header:
+
+Header Format:
+  Authorization: Bearer {firebase_id_token}
+
+How to get Firebase ID token (Frontend):
+  const user = firebase.auth().currentUser;
+  const token = await user.getIdToken();
+
+Example API Call:
+  fetch('http://localhost:5001/api/tips', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(tipData)
+  });
+
+
+================================================================================
+3. API ENDPOINTS - COMPLETE LIST
+================================================================================
+
+PUBLIC ENDPOINTS (No Authentication Required)
+----------------------------------------------
+1. GET    /api/tips                    - List all tips with pagination/search
+2. GET    /api/tips/trending           - Get trending tips (most upvoted)
+
+AUTHENTICATED ENDPOINTS (Require Firebase Token)
+-------------------------------------------------
+3. POST   /api/tips                    - Create new tip
+4. PUT    /api/tips/:id                - Update tip (author only)
+5. PATCH  /api/tips/:id                - Partially update tip (author only)
+6. DELETE /api/tips/:id                - Delete tip (author only)
+7. POST   /api/tips/:id/upvote         - Upvote a tip
+8. GET    /api/tips/my-tips            - Get tips created by logged-in user
+
+
+================================================================================
+4. ENDPOINT DETAILS
+================================================================================
+
+------------------------------------------------------------------------------
+ENDPOINT 1: GET /api/tips
+------------------------------------------------------------------------------
+Description: Get all tips with pagination, search, and sorting
+Access: Public (no authentication required)
+
+URL: GET http://localhost:5001/api/tips
+
+Query Parameters:
+  - page: number (default: 1)
+  - limit: number (default: 20, max: 100)
+  - sortBy: string (optional, values: "createdAt", "upvoteCount", default: "createdAt")
+  - order: string (optional, values: "asc", "desc", default: "desc")
+  - search: string (optional, searches in title and content)
+  - authorId: string (optional, filter by author Firebase UID)
+
+Example Requests:
+  GET /api/tips
+  GET /api/tips?page=1&limit=20
+  GET /api/tips?search=reusable&sortBy=upvoteCount&order=desc
+  GET /api/tips?authorId=firebase_uid_abc123
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "tips": [
+      {
+        "id": "tip-1731668400123",
+        "title": "Carry a reusable cup",
+        "content": "Many cafes offer discounts for bringing your own cup. You can save money while reducing single-use plastic waste.",
+        "authorId": "firebase_uid_abc123",
+        "authorName": "Ava Green",
+        "authorImage": "https://lh3.googleusercontent.com/a/ACg8ocK...",
+        "upvoteCount": 42,
+        "createdAt": "2025-03-15T09:00:00.000Z",
+        "updatedAt": "2025-03-15T09:00:00.000Z",
+        "isEdited": false
+      },
+      {
+        "id": "tip-1731668401234",
+        "title": "Switch to LED bulbs",
+        "content": "LED bulbs use 75% less energy and last 25 times longer than incandescent bulbs. Replace just 5 bulbs and save $75/year on energy costs.",
+        "authorId": "firebase_uid_xyz789",
+        "authorName": "John Eco",
+        "authorImage": null,
+        "upvoteCount": 38,
+        "createdAt": "2025-03-14T14:30:00.000Z",
+        "updatedAt": "2025-03-14T14:30:00.000Z",
+        "isEdited": false
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 150,
+      "pages": 8
+    }
+  }
+}
+
+Error 500:
+{
+  "success": false,
+  "message": "Failed to fetch tips"
+}
+
+
+------------------------------------------------------------------------------
+ENDPOINT 2: GET /api/tips/trending
+------------------------------------------------------------------------------
+Description: Get trending tips (most upvoted in recent days)
+Access: Public (no authentication required)
+
+URL: GET http://localhost:5001/api/tips/trending
+
+Query Parameters:
+  - days: number (default: 7, max: 30) - Tips from last N days
+  - limit: number (default: 10, max: 50) - Number of tips to return
+
+Example Requests:
+  GET /api/tips/trending
+  GET /api/tips/trending?days=7&limit=10
+  GET /api/tips/trending?days=30&limit=20
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "tips": [
+      {
+        "id": "tip-1731668400123",
+        "title": "Carry a reusable cup",
+        "content": "Many cafes offer discounts for bringing your own cup...",
+        "authorId": "firebase_uid_abc123",
+        "authorName": "Ava Green",
+        "authorImage": "https://lh3.googleusercontent.com/a/ACg8ocK...",
+        "upvoteCount": 42,
+        "createdAt": "2025-03-15T09:00:00.000Z",
+        "updatedAt": "2025-03-15T09:00:00.000Z",
+        "isEdited": false
+      }
+    ],
+    "days": 7,
+    "limit": 10
+  }
+}
+
+Error 500:
+{
+  "success": false,
+  "message": "Failed to fetch trending tips"
+}
+
+
+------------------------------------------------------------------------------
+ENDPOINT 3: POST /api/tips
+------------------------------------------------------------------------------
+Description: Create new eco-friendly tip
+Access: Authenticated users only
+
+URL: POST http://localhost:5001/api/tips
+Headers:
+  Authorization: Bearer {firebase_token}
+  Content-Type: application/json
+
+Request Body:
+{
+  "title": "Carry a reusable cup everywhere",
+  "content": "Many cafes offer discounts for bringing your own cup. You can save money while reducing single-use plastic waste. I've saved over $50 this year!"
+}
+
+Field Validation:
+  - title: 5-100 characters (required)
+    * Alphanumeric, spaces, and basic punctuation (.,!?-&:)
+    * Example: "Switch to reusable bags!"
+  
+  - content: 20-500 characters (required)
+    * Detailed explanation of the tip
+    * Example: "Keep reusable bags in your car or by the door..."
+
+Author Information (Auto-populated from Firebase token):
+  - authorId: Extracted from token.uid
+  - authorName: Extracted from token.displayName or email
+  - authorImage: Extracted from token.photoURL (nullable)
+  
+  ⚠️ SECURITY: Never send author information in request body!
+              Backend extracts it from authenticated token.
+
+Response 201:
+{
+  "success": true,
+  "message": "Tip created successfully",
+  "data": {
+    "id": "tip-1731668400456",
+    "title": "Carry a reusable cup everywhere",
+    "content": "Many cafes offer discounts for bringing your own cup...",
+    "authorId": "firebase_uid_abc123",
+    "authorName": "Ava Green",
+    "authorImage": "https://lh3.googleusercontent.com/a/ACg8ocK...",
+    "upvoteCount": 0,
+    "createdAt": "2025-11-15T10:00:00.000Z",
+    "updatedAt": "2025-11-15T10:00:00.000Z",
+    "isEdited": false,
+    "isOwner": true
+  }
+}
+
+Error 400 (Validation):
+{
+  "success": false,
+  "message": "Validation failed",
+  "errors": [
+    {
+      "field": "title",
+      "message": "Title must be between 5 and 100 characters"
+    },
+    {
+      "field": "content",
+      "message": "Content must be between 20 and 500 characters"
+    }
+  ]
+}
+
+Error 401:
+{
+  "success": false,
+  "message": "Authentication required"
+}
+
+
+------------------------------------------------------------------------------
+ENDPOINT 4: PUT /api/tips/:id
+------------------------------------------------------------------------------
+Description: Update tip (author only) - full update
+Access: Tip author only
+
+URL: PUT http://localhost:5001/api/tips/{tip-id}
+Headers:
+  Authorization: Bearer {firebase_token}
+  Content-Type: application/json
+
+Request Body (all fields optional):
+{
+  "title": "Updated title here",
+  "content": "Updated content with more details and improvements to the original tip."
+}
+
+Notes:
+  - Only the author can update their tip
+  - At least one field must be provided
+  - Cannot update authorId, authorName, authorImage (immutable)
+  - Cannot update upvoteCount or upvotes (managed by system)
+  - updatedAt timestamp automatically updates
+  - isEdited becomes true when updatedAt !== createdAt
+
+Response 200:
+{
+  "success": true,
+  "message": "Tip updated successfully",
+  "data": {
+    "id": "tip-1731668400456",
+    "title": "Updated title here",
+    "content": "Updated content with more details...",
+    "authorId": "firebase_uid_abc123",
+    "authorName": "Ava Green",
+    "authorImage": "https://lh3.googleusercontent.com/a/ACg8ocK...",
+    "upvoteCount": 5,
+    "createdAt": "2025-11-15T10:00:00.000Z",
+    "updatedAt": "2025-11-15T10:30:00.000Z",
+    "isEdited": true
+  }
+}
+
+Error 400 (Validation):
+{
+  "success": false,
+  "message": "Validation failed",
+  "errors": [
+    {
+      "field": "title",
+      "message": "Title must be between 5 and 100 characters"
+    }
+  ]
+}
+
+Error 400 (No fields):
+{
+  "success": false,
+  "message": "No fields to update"
+}
+
+Error 403:
+{
+  "success": false,
+  "message": "You are not authorized to update this tip"
+}
+
+Error 404:
+{
+  "success": false,
+  "message": "Tip not found"
+}
+
+
+------------------------------------------------------------------------------
+ENDPOINT 5: PATCH /api/tips/:id
+------------------------------------------------------------------------------
+Description: Partially update tip (author only) - same as PUT
+Access: Tip author only
+
+URL: PATCH http://localhost:5001/api/tips/{tip-id}
+Headers:
+  Authorization: Bearer {firebase_token}
+  Content-Type: application/json
+
+Request Body (all fields optional):
+{
+  "title": "Just updating the title"
+}
+
+Response: Same as PUT endpoint (see above)
+
+Note: Both PUT and PATCH support partial updates in this API.
+
+
+------------------------------------------------------------------------------
+ENDPOINT 6: DELETE /api/tips/:id
+------------------------------------------------------------------------------
+Description: Delete tip permanently (author only)
+Access: Tip author only
+
+URL: DELETE http://localhost:5001/api/tips/{tip-id}
+Headers:
+  Authorization: Bearer {firebase_token}
+
+No request body required
+
+Response 200:
+{
+  "success": true,
+  "message": "Tip deleted successfully"
+}
+
+Error 403:
+{
+  "success": false,
+  "message": "You are not authorized to delete this tip"
+}
+
+Error 404:
+{
+  "success": false,
+  "message": "Tip not found"
+}
+
+
+------------------------------------------------------------------------------
+ENDPOINT 7: POST /api/tips/:id/upvote
+------------------------------------------------------------------------------
+Description: Upvote a tip (can upvote multiple times, max 100 per user per tip)
+Access: Authenticated users only
+
+URL: POST http://localhost:5001/api/tips/{tip-id}/upvote
+Headers:
+  Authorization: Bearer {firebase_token}
+
+No request body required
+
+Business Rules:
+  ✓ Users can upvote the same tip multiple times
+  ✓ Maximum 100 upvotes per user per tip
+  ✗ Cannot upvote your own tips
+  ✓ Each upvote is tracked with userId and timestamp
+  ✓ upvoteCount increments atomically (prevents race conditions)
+
+Response 200:
+{
+  "success": true,
+  "message": "Tip upvoted successfully",
+  "data": {
+    "id": "tip-1731668400456",
+    "title": "Carry a reusable cup everywhere",
+    "content": "Many cafes offer discounts...",
+    "authorId": "firebase_uid_abc123",
+    "authorName": "Ava Green",
+    "authorImage": "https://lh3.googleusercontent.com/a/ACg8ocK...",
+    "upvoteCount": 43,
+    "createdAt": "2025-11-15T10:00:00.000Z",
+    "updatedAt": "2025-11-15T10:00:00.000Z",
+    "isEdited": false,
+    "userUpvotesCount": 1
+  }
+}
+
+Error 400 (Self-upvote):
+{
+  "success": false,
+  "message": "You cannot upvote your own tip",
+  "code": "SELF_UPVOTE"
+}
+
+Error 400 (Limit reached):
+{
+  "success": false,
+  "message": "You have reached the maximum upvote limit (100) for this tip",
+  "code": "UPVOTE_LIMIT_REACHED"
+}
+
+Error 401:
+{
+  "success": false,
+  "message": "Authentication required to upvote tips"
+}
+
+Error 404:
+{
+  "success": false,
+  "message": "Tip not found",
+  "code": "NOT_FOUND"
+}
+
+
+------------------------------------------------------------------------------
+ENDPOINT 8: GET /api/tips/my-tips
+------------------------------------------------------------------------------
+Description: Get tips created by logged-in user
+Access: Authenticated users only
+
+URL: GET http://localhost:5001/api/tips/my-tips
+Headers:
+  Authorization: Bearer {firebase_token}
+
+Query Parameters:
+  - page: number (default: 1)
+  - limit: number (default: 20)
+  - sortBy: string (optional, values: "createdAt", "upvoteCount", default: "createdAt")
+  - order: string (optional, values: "asc", "desc", default: "desc")
+
+Example Requests:
+  GET /api/tips/my-tips
+  GET /api/tips/my-tips?page=1&limit=20
+  GET /api/tips/my-tips?sortBy=upvoteCount&order=desc
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "tips": [
+      {
+        "id": "tip-1731668400456",
+        "title": "Carry a reusable cup",
+        "content": "Many cafes offer discounts...",
+        "authorId": "firebase_uid_abc123",
+        "authorName": "Ava Green",
+        "authorImage": "https://lh3.googleusercontent.com/a/ACg8ocK...",
+        "upvoteCount": 42,
+        "createdAt": "2025-11-15T10:00:00.000Z",
+        "updatedAt": "2025-11-15T10:00:00.000Z",
+        "isEdited": false
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 5,
+      "pages": 1
+    }
+  }
+}
+
+Error 401:
+{
+  "success": false,
+  "message": "Failed to fetch your tips"
+}
+
+
+================================================================================
+5. TIP DATA MODEL
+================================================================================
+
+Tip Object Structure:
+{
+  "id": "tip-1731668400123",              // URL-friendly unique ID
+  "title": "Tip Title",                    // 5-100 characters
+  "content": "Tip description...",         // 20-500 characters
+  "authorId": "firebase_uid_abc123",       // Firebase user ID
+  "authorName": "Ava Green",               // Author display name
+  "authorImage": "https://...",            // Author profile photo (nullable)
+  "upvoteCount": 42,                       // Total upvotes (can exceed unique users)
+  "createdAt": "2025-11-15T10:00:00.000Z", // Creation timestamp
+  "updatedAt": "2025-11-15T10:30:00.000Z", // Last update timestamp
+  "isEdited": false                        // True if updated after creation
+}
+
+Additional Fields (when authenticated):
+{
+  "isOwner": true,                         // True if current user is author
+  "userUpvotesCount": 3                    // How many times current user upvoted (in upvote response only)
+}
+
+Field Descriptions:
+  - id: Unique identifier (format: "tip-{timestamp}")
+  - title: Short, catchy title for the tip
+  - content: Detailed explanation of the eco-friendly tip
+  - authorId: Firebase UID of tip creator (immutable)
+  - authorName: Display name of author (immutable)
+  - authorImage: Profile photo URL or null (immutable)
+  - upvoteCount: Total number of upvotes (not unique users)
+  - createdAt: ISO 8601 timestamp of creation
+  - updatedAt: ISO 8601 timestamp of last update
+  - isEdited: Computed field (updatedAt !== createdAt)
+  - isOwner: True if authenticated user is the author
+  - userUpvotesCount: Number of times current user upvoted this tip
+
+
+================================================================================
+6. FRONTEND IMPLEMENTATION EXAMPLES
+================================================================================
+
+Example 1: Fetch All Tips
+--------------------------
+const fetchTips = async (page = 1, search = '') => {
+  try {
+    const response = await fetch(
+      `http://localhost:5001/api/tips?page=${page}&limit=20&search=${search}&sortBy=upvoteCount&order=desc`
+    );
+    const data = await response.json();
+    
+    if (data.success) {
+      console.log('Tips:', data.data.tips);
+      console.log('Pagination:', data.data.pagination);
+    }
+  } catch (error) {
+    console.error('Error fetching tips:', error);
+  }
+};
+
+
+Example 2: Create Tip (Authenticated)
+--------------------------------------
+const createTip = async (tipData) => {
+  try {
+    const user = firebase.auth().currentUser;
+    const token = await user.getIdToken();
+    
+    const response = await fetch('http://localhost:5001/api/tips', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        title: tipData.title,
+        content: tipData.content
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      console.log('Tip created:', data.data);
+    } else {
+      console.error('Error:', data.message);
+      if (data.errors) {
+        console.error('Validation errors:', data.errors);
+      }
+    }
+  } catch (error) {
+    console.error('Error creating tip:', error);
+  }
+};
+
+
+Example 3: Upvote Tip (Authenticated)
+--------------------------------------
+const upvoteTip = async (tipId) => {
+  try {
+    const user = firebase.auth().currentUser;
+    const token = await user.getIdToken();
+    
+    const response = await fetch(
+      `http://localhost:5001/api/tips/${tipId}/upvote`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      }
+    );
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      console.log('Upvoted successfully!');
+      console.log('New upvote count:', data.data.upvoteCount);
+      console.log('Your total upvotes on this tip:', data.data.userUpvotesCount);
+    } else {
+      if (data.code === 'SELF_UPVOTE') {
+        console.log('Cannot upvote your own tip');
+      } else if (data.code === 'UPVOTE_LIMIT_REACHED') {
+        console.log('You have upvoted this tip 100 times already');
+      } else {
+        console.error('Error:', data.message);
+      }
+    }
+  } catch (error) {
+    console.error('Error upvoting tip:', error);
+  }
+};
+
+
+Example 4: Get My Tips (Authenticated)
+---------------------------------------
+const getMyTips = async () => {
+  try {
+    const user = firebase.auth().currentUser;
+    const token = await user.getIdToken();
+    
+    const response = await fetch(
+      'http://localhost:5001/api/tips/my-tips?sortBy=upvoteCount&order=desc',
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      }
+    );
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      console.log('My tips:', data.data.tips);
+      console.log('Total tips:', data.data.pagination.total);
+    }
+  } catch (error) {
+    console.error('Error fetching my tips:', error);
+  }
+};
+
+
+Example 5: Update Tip (Authenticated, Author Only)
+---------------------------------------------------
+const updateTip = async (tipId, updateData) => {
+  try {
+    const user = firebase.auth().currentUser;
+    const token = await user.getIdToken();
+    
+    const response = await fetch(
+      `http://localhost:5001/api/tips/${tipId}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updateData)
+      }
+    );
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      console.log('Tip updated:', data.data);
+      console.log('Is edited:', data.data.isEdited);
+    } else {
+      console.error('Error:', data.message);
+    }
+  } catch (error) {
+    console.error('Error updating tip:', error);
+  }
+};
+
+
+Example 6: Delete Tip (Authenticated, Author Only)
+---------------------------------------------------
+const deleteTip = async (tipId) => {
+  try {
+    const user = firebase.auth().currentUser;
+    const token = await user.getIdToken();
+    
+    const response = await fetch(
+      `http://localhost:5001/api/tips/${tipId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      }
+    );
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      console.log('Tip deleted successfully');
+    } else {
+      console.error('Error:', data.message);
+    }
+  } catch (error) {
+    console.error('Error deleting tip:', error);
+  }
+};
+
+
+Example 7: Get Trending Tips
+-----------------------------
+const getTrendingTips = async () => {
+  try {
+    const response = await fetch(
+      'http://localhost:5001/api/tips/trending?days=7&limit=10'
+    );
+    const data = await response.json();
+    
+    if (data.success) {
+      console.log('Trending tips:', data.data.tips);
+      console.log('From last', data.data.days, 'days');
+    }
+  } catch (error) {
+    console.error('Error fetching trending tips:', error);
+  }
+};
+
+
+Example 8: Search Tips
+-----------------------
+const searchTips = async (searchQuery) => {
+  try {
+    const response = await fetch(
+      `http://localhost:5001/api/tips?search=${encodeURIComponent(searchQuery)}&sortBy=upvoteCount&order=desc`
+    );
+    const data = await response.json();
+    
+    if (data.success) {
+      console.log('Search results:', data.data.tips);
+    }
+  } catch (error) {
+    console.error('Error searching tips:', error);
+  }
+};
+
+
+================================================================================
+7. ERROR HANDLING
+================================================================================
+
+Common HTTP Status Codes:
+  200 - OK (Success)
+  201 - Created (Tip created successfully)
+  400 - Bad Request (Validation errors, business rule violations)
+  401 - Unauthorized (Authentication required or invalid token)
+  403 - Forbidden (Not authorized, e.g., not tip author)
+  404 - Not Found (Tip doesn't exist)
+  409 - Conflict (Duplicate tip)
+  500 - Internal Server Error (Server-side error)
+
+Error Response Format:
+{
+  "success": false,
+  "message": "Human-readable error message",
+  "errors": [
+    {
+      "field": "fieldName",
+      "message": "Error description"
+    }
+  ],
+  "code": "ERROR_CODE"
+}
+
+Error Codes:
+  - VALIDATION_ERROR - Input validation failed
+  - SELF_UPVOTE - User tried to upvote own tip
+  - UPVOTE_LIMIT_REACHED - User reached 100 upvote limit for this tip
+  - NOT_FOUND - Tip not found
+  - AUTH_REQUIRED - Authentication required
+  - FORBIDDEN - User lacks permission
+
+Frontend Error Handling Pattern:
+const response = await fetch(url, options);
+const data = await response.json();
+
+if (!response.ok) {
+  if (response.status === 401) {
+    // Redirect to login
+    window.location.href = '/login';
+  } else if (response.status === 403) {
+    // Show "not authorized" message
+    showError('You are not authorized to perform this action');
+  } else if (response.status === 400) {
+    if (data.code === 'SELF_UPVOTE') {
+      showError('You cannot upvote your own tip');
+    } else if (data.code === 'UPVOTE_LIMIT_REACHED') {
+      showError('You have upvoted this tip the maximum number of times');
+    } else if (data.errors) {
+      // Show validation errors
+      data.errors.forEach(err => {
+        showFieldError(err.field, err.message);
+      });
+    } else {
+      showError(data.message);
+    }
+  } else {
+    // Show general error message
+    showError(data.message || 'An error occurred');
+  }
+}
+
+
+================================================================================
+8. IMPORTANT NOTES FOR FRONTEND TEAM
+================================================================================
+
+1. Firebase Authentication Required:
+   - All authenticated endpoints need Firebase ID token
+   - Token expires after 1 hour (Firebase auto-refreshes)
+   - Use firebase.auth().currentUser.getIdToken() to get token
+
+2. Tip ID Format:
+   - Tip IDs are unique identifiers (format: "tip-{timestamp}")
+   - Example: "tip-1731668400123"
+   - Use the "id" field in URLs
+
+3. Author Information Security:
+   - NEVER send authorId, authorName, or authorImage in request body
+   - Backend automatically extracts these from Firebase token
+   - This prevents users from impersonating others
+
+4. Upvoting System:
+   - Users can upvote the same tip multiple times
+   - Maximum 100 upvotes per user per tip
+   - Users cannot upvote their own tips (returns 400 error)
+   - upvoteCount shows total upvotes (not unique users)
+   - Atomic operations prevent race conditions
+
+5. Text Avatar Fallback:
+   - If authorImage is null, display text avatar
+   - Use first letter of authorName
+   - Example: "Ava Green" → "A" in colored circle
+
+6. Edited Badge:
+   - Display "(edited)" badge when isEdited is true
+   - This indicates the tip was modified after creation
+   - Computed by comparing updatedAt and createdAt
+
+7. Pagination:
+   - Default: 20 items per page
+   - Maximum: 100 items per page
+   - Use pagination object to build page controls
+
+8. Validation:
+   - Title: 5-100 characters, alphanumeric + basic punctuation
+   - Content: 20-500 characters
+   - Frontend should validate before submitting
+
+9. Sorting Options:
+   - Sort by "createdAt" (newest/oldest first)
+   - Sort by "upvoteCount" (most/least upvoted)
+   - Default: newest first (createdAt desc)
+
+10. Search Functionality:
+    - Searches in both title and content
+    - Case-insensitive MongoDB text search
+    - Combine with sorting for best results
+
+11. Date Handling:
+    - All dates are in ISO 8601 format (UTC)
+    - Frontend should convert to local timezone
+    - Format for display: "March 15, 2025 at 9:00 AM"
+
+12. Trending Tips:
+    - Shows tips with most upvotes from recent days
+    - Default: last 7 days, limit 10 tips
+    - Great for homepage/dashboard widgets
+
+
+================================================================================
+9. COMMON USE CASES
+================================================================================
+
+Use Case 1: Tips Feed Page
+---------------------------
+1. Fetch tips with GET /api/tips?sortBy=upvoteCount&order=desc
+2. Show tips in card layout
+3. Display author name, avatar (or text avatar), and upvote count
+4. Add upvote button (requires authentication)
+5. Show pagination controls
+6. Add search bar for filtering
+
+Use Case 2: Create Tip Form
+----------------------------
+1. User must be authenticated
+2. Form fields: title (5-100 chars) and content (20-500 chars)
+3. Validate before submitting
+4. POST to /api/tips
+5. Handle validation errors from backend
+6. Show success message and redirect to tips feed
+
+Use Case 3: Tip Detail/Expand View
+-----------------------------------
+1. Show full tip content
+2. Display author info with avatar
+3. Show upvote count and upvote button
+4. If user is author, show Edit and Delete buttons
+5. Show "(edited)" badge if isEdited is true
+6. Format createdAt date nicely
+
+Use Case 4: User Dashboard - My Tips
+-------------------------------------
+1. Fetch user's tips with GET /api/tips/my-tips
+2. Sort by upvoteCount to show most popular first
+3. Show Edit and Delete buttons on each tip
+4. Display total upvotes received
+5. Show created date for each tip
+
+Use Case 5: Upvoting
+--------------------
+1. Check if user is authenticated
+2. Show thumbs-up icon (filled if user upvoted)
+3. On click: POST to /api/tips/:id/upvote
+4. Update upvoteCount in UI immediately (optimistic update)
+5. Show animation (flying thumbs-up)
+6. Handle errors (self-upvote, limit reached)
+7. Track userUpvotesCount to show "You upvoted 3 times"
+
+Use Case 6: Trending Tips Widget
+---------------------------------
+1. Fetch trending with GET /api/tips/trending?days=7&limit=5
+2. Display in sidebar or homepage section
+3. Show top 5 tips with highest upvotes
+4. Refresh daily or on page load
+5. Link to full tips feed
+
+Use Case 7: Edit Tip
+--------------------
+1. Check if user is tip author (isOwner)
+2. Pre-fill form with current title and content
+3. PUT/PATCH to /api/tips/:id with updates
+4. Handle 403 error (not author)
+5. Show success message
+6. Tip shows "(edited)" badge after update
+
+Use Case 8: Delete Tip
+-----------------------
+1. Check if user is tip author
+2. Show confirmation dialog
+3. DELETE to /api/tips/:id
+4. Handle 403 error (not author)
+5. Remove tip from UI on success
+6. Show success message
+
+
+================================================================================
+10. UI/UX RECOMMENDATIONS
+================================================================================
+
+Tip Card Layout:
+  ┌─────────────────────────────────────┐
+  │ [Avatar] Author Name                │
+  │          2 hours ago                │
+  │                                     │
+  │ Tip Title                           │
+  │ Tip content preview (first 100      │
+  │ characters with "...Read more")     │
+  │                                     │
+  │ [👍 42 upvotes]  [Edit] [Delete]    │
+  │                  (if owner)         │
+  └─────────────────────────────────────┘
+
+Upvote Button States:
+  - Not upvoted: Empty thumbs-up icon
+  - Upvoted: Filled thumbs-up icon (primary color)
+  - On click: Animate icon and increment count
+  - Disabled: If user is tip author
+
+Author Avatar:
+  - If authorImage exists: Show profile photo
+  - If authorImage is null: Show text avatar
+    * First letter of authorName
+    * Colored circle background
+    * Example: "A" for "Ava Green"
+
+Edited Badge:
+  - Show small "(edited)" text next to timestamp
+  - Gray color, smaller font
+  - Only show if isEdited is true
+
+Search and Sort Controls:
+  ┌────────────────────────────────────┐
+  │ [Search tips...] [🔍]              │
+  │                                    │
+  │ Sort by: [Most upvoted ▼]         │
+  └────────────────────────────────────┘
+
+Pagination:
+  ┌────────────────────────────────────┐
+  │ [◀ Previous] Page 1 of 8 [Next ▶] │
+  └────────────────────────────────────┘
+
+
+================================================================================
+11. TESTING TIPS API
+================================================================================
+
+You can test all endpoints using:
+  - Thunder Client (VS Code extension)
+  - Postman
+  - curl commands
+  - Browser DevTools
+
+Health Check:
+  GET http://localhost:5001/health
+
+API Documentation:
+  GET http://localhost:5001/api
+
+Test Sequence:
+  1. ✓ GET /api/tips (public, no auth)
+  2. ✓ GET /api/tips/trending (public, no auth)
+  3. ✓ POST /api/tips (requires auth)
+  4. ✓ GET /api/tips/my-tips (requires auth)
+  5. ✓ POST /api/tips/:id/upvote (requires auth)
+  6. ✓ PUT /api/tips/:id (requires auth, author only)
+  7. ✓ DELETE /api/tips/:id (requires auth, author only)
+
+
+================================================================================
+12. ENVIRONMENT SETUP
+================================================================================
+
+Backend runs on:
+  http://localhost:5001
+
+API Base URL:
+  http://localhost:5001/api
+
+Tips Endpoint:
+  http://localhost:5001/api/tips
+
+Health Check Endpoint:
+  http://localhost:5001/health
+
+API Documentation Endpoint:
+  http://localhost:5001/api
+
+Update these URLs for production deployment.
+
+
+================================================================================
+13. RATE LIMITING
+================================================================================
+
+Rate Limits (per IP address):
+  - General API calls: 100 requests per 15 minutes
+  - Development mode: 1000 requests per 15 minutes
+
+Recommended Limits per User:
+  - Create tip: 10 per hour (prevent spam)
+  - Update tip: 20 per hour
+  - Delete tip: 10 per hour
+  - Upvote: 200 per hour (allow multiple rapid upvotes)
+
+If rate limit exceeded:
+{
+  "success": false,
+  "error": {
+    "message": "Too many requests from this IP, please try again later."
+  }
+}
+
+
+================================================================================
+14. PERFORMANCE OPTIMIZATION
+================================================================================
+
+Backend Optimizations:
+  ✓ MongoDB indexes for fast queries
+  ✓ Atomic operations for upvote counting
+  ✓ Pagination to limit response size
+  ✓ Text search index for search functionality
+
+Frontend Recommendations:
+  1. Cache tip list for 1-2 minutes
+  2. Implement infinite scroll or pagination
+  3. Debounce search input (wait 300ms before API call)
+  4. Show loading skeletons during fetch
+  5. Optimistic UI updates for upvotes
+  6. Lazy load images (use loading="lazy")
+  7. Store user's tips in local state after fetch
+
+
+================================================================================
+15. SECURITY BEST PRACTICES
+================================================================================
+
+Authentication:
+  ✓ Always send Firebase token in Authorization header
+  ✓ Never expose Firebase tokens in URLs or logs
+  ✓ Check for 401 responses and redirect to login
+
+Authorization:
+  ✓ Backend verifies user owns tip before update/delete
+  ✓ Backend prevents self-upvoting
+  ✓ Backend enforces 100 upvote limit per user per tip
+
+Input Validation:
+  ✓ Validate on frontend before API call
+  ✓ Backend validates again (never trust client)
+  ✓ Sanitize HTML to prevent XSS attacks
+  ✓ Trim whitespace from inputs
+
+Data Protection:
+  ✓ Never send authorId, authorName, authorImage in request
+  ✓ Backend extracts author info from Firebase token
+  ✓ This prevents user impersonation
+
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================
+
+This documentation covers all implemented endpoints as of November 15, 2025.
+
+Tips API is fully operational and ready for frontend integration! 🎉
