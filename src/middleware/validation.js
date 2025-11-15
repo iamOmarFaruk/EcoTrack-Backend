@@ -88,7 +88,7 @@ const schemas = {
     duration: Joi.string().min(3).max(50).required().trim(),
     requirements: Joi.string().min(10).max(500).required().trim(),
     benefits: Joi.string().min(10).max(500).required().trim(),
-    image: Joi.string().uri().pattern(/^https:\/\/images\.unsplash\.com\//).allow('', null)
+    image: Joi.string().uri().required()
   }),
 
   updateEvent: Joi.object({
@@ -102,7 +102,7 @@ const schemas = {
     duration: Joi.string().min(3).max(50).trim(),
     requirements: Joi.string().min(10).max(500).trim(),
     benefits: Joi.string().min(10).max(500).trim(),
-    image: Joi.string().uri().pattern(/^https:\/\/images\.unsplash\.com\//).allow('', null),
+    image: Joi.string().uri(),
     status: Joi.string().valid('active', 'cancelled', 'completed')
   }).min(1),
 

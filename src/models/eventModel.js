@@ -50,7 +50,7 @@ const createEvent = async (eventData, userId) => {
     duration: eventData.duration.trim(),
     requirements: eventData.requirements.trim(),
     benefits: eventData.benefits.trim(),
-    image: eventData.image || getDefaultImage(eventData.title, eventData.location),
+    image: eventData.image,
     createdBy: userId,
     createdAt: now,
     updatedAt: now,
