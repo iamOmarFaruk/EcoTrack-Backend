@@ -1,29 +1,20 @@
-// Firebase Admin SDK Configuration
+// Firebase Admin SDK Configuration (env-only, no JSON file)
 const admin = require('firebase-admin');
 
-let serviceAccount;
-
-// Method 1: Try loading from service account file (in root directory)
-try {
-  serviceAccount = require('../../ecotrack-sso-firebase-adminsdk-fbsvc-fb8fe712b3.json');
-  console.log('✅ Firebase service account file loaded successfully');
-} catch (error) {
-  console.log('⚠️ Service account file not found, trying environment variables...');
-  
-  // Method 2: Use environment variables
-  if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
-    serviceAccount = {
-      "type": "service_account",
-      "project_id": process.env.FIREBASE_PROJECT_ID,
-      "private_key": process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-      "client_email": process.env.FIREBASE_CLIENT_EMAIL
-    };
-    console.log('✅ Firebase credentials loaded from environment variables');
-  } else {
-    console.error('❌ No Firebase credentials found! Please check your service account file or environment variables.');
-    throw new Error('Firebase credentials not configured');
-  }
+// Build service account from environment variables only
+if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_PRIVATE_KEY || !process.env.FIREBASE_CLIENT_EMAIL) {
+  console.error('❌ Firebase env vars missing. Please set FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, FIREBASE_CLIENT_EMAIL');
+  throw new Error('Firebase credentials not configured');
 }
+
+const serviceAccount = {
+  type: 'service_account',
+  project_id: process.env.FIREBASE_PROJECT_ID,
+  private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+  client_email: process.env.FIREBASE_CLIENT_EMAIL
+};
+
+console.log('✅ Firebase credentials loaded from environment variables');
 
 // Initialize Firebase Admin SDK
 function initializeFirebase() {

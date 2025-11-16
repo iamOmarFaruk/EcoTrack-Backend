@@ -71,6 +71,7 @@ app.use(helmet({
 // CORS configuration - relaxed for development
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:3000',
+  'https://eco-track-peach.vercel.app',
   'http://localhost:3001', // Allow server requests
   'http://localhost:5173', // Vite dev server
   'http://127.0.0.1:3000',
