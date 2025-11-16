@@ -3,7 +3,7 @@ const router = express.Router();
 const { authenticateFirebaseToken, optionalFirebaseAuth } = require("../middleware/firebaseAuth");
 const {
   getAllChallenges,
-  getChallengeDetails,
+  getChallengeBySlug,
   createNewChallenge,
   updateExistingChallenge,
   deleteExistingChallenge,
@@ -15,21 +15,21 @@ const {
   getCommunityImpactSummary,
 } = require("../controllers/challengeController");
 
-// User-specific routes (must come BEFORE /:id routes to avoid conflicts)
+// User-specific routes (must come BEFORE other routes to avoid conflicts)
 router.get("/my/created", authenticateFirebaseToken, getMyCreatedChallenges);
 router.get("/my/joined", authenticateFirebaseToken, getMyJoinedChallengesList);
 
 // Public routes (no authentication required)
 router.get("/", getAllChallenges);
 router.get("/community-impact/summary", getCommunityImpactSummary);
-router.get("/:id", optionalFirebaseAuth, getChallengeDetails);
-router.get("/:id/participants", optionalFirebaseAuth, getChallengeParticipantsList);
+router.get("/slug/:slug", optionalFirebaseAuth, getChallengeBySlug); // SEO-friendly URL
 
-// Authenticated routes
+// Authenticated routes - using MongoDB _id for operations
 router.post("/", authenticateFirebaseToken, createNewChallenge);
 router.put("/:id", authenticateFirebaseToken, updateExistingChallenge);
 router.delete("/:id", authenticateFirebaseToken, deleteExistingChallenge);
 router.post("/:id/join", authenticateFirebaseToken, joinExistingChallenge);
 router.post("/:id/leave", authenticateFirebaseToken, leaveExistingChallenge);
+router.get("/:id/participants", optionalFirebaseAuth, getChallengeParticipantsList);
 
 module.exports = router;

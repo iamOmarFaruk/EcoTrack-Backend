@@ -1,0 +1,502 @@
+================================================================================
+CHALLENGE API ENDPOINTS - FRONTEND INTEGRATION GUIDE
+================================================================================
+
+BASE URL: /api/challenges
+
+================================================================================
+1. LIST ALL CHALLENGES
+================================================================================
+GET /api/challenges
+
+Query Parameters:
+  - page (optional): Page number, default 1
+  - limit (optional): Items per page, default 10, max 50
+  - search (optional): Text search in title/description/category
+  - status (optional): Filter by status (active, completed, cancelled)
+  - category (optional): Filter by category (Food, Waste Reduction, Energy Conservation, Water, Community)
+  - featured (optional): Filter featured challenges (true/false)
+  - sortBy (optional): Sort field, default "startDate"
+  - order (optional): Sort order (asc/desc), default "desc"
+
+Response:
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "673868b0c7f8e9f4a2e1b234",
+      "slug": "zero-waste-meal-week",
+      "category": "Food",
+      "title": "Zero-Waste Meal for Week",
+      "shortDescription": "Cook all meals using ingredients already available at home",
+      "detailedDescription": "Full description here...",
+      "image": "https://images.unsplash.com/photo-...",
+      "participants": [...],
+      "registeredParticipants": 5,
+      "duration": "7 days",
+      "communityImpact": {
+        "co2SavedKg": 12,
+        "plasticReducedKg": 3,
+        "waterSavedL": 120,
+        "energySavedKwh": 8
+      },
+      "startDate": "2025-11-16T00:00:00.000Z",
+      "endDate": "2025-11-23T00:00:00.000Z",
+      "featured": true,
+      "status": "active",
+      "createdBy": "09i0WdoHaWSQ7p55EAvMeJ5FddC3",
+      "createdAt": "2025-11-16T05:39:04.462Z",
+      "updatedAt": "2025-11-16T05:39:04.462Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 25,
+    "pages": 3
+  }
+}
+
+Example Usage:
+  GET /api/challenges?page=1&limit=10&category=Food&status=active
+
+
+================================================================================
+2. VIEW SINGLE CHALLENGE (SEO-FRIENDLY)
+================================================================================
+GET /api/challenges/slug/:slug
+
+URL Parameters:
+  - slug: The SEO-friendly slug (e.g., "zero-waste-meal-week")
+
+Authentication: Optional (if logged in, returns isJoined and isCreator flags)
+
+Response:
+{
+  "success": true,
+  "data": {
+    "_id": "673868b0c7f8e9f4a2e1b234",
+    "slug": "zero-waste-meal-week",
+    "category": "Food",
+    "title": "Zero-Waste Meal for Week",
+    "shortDescription": "Cook all meals using ingredients already available at home",
+    "detailedDescription": "Full description here...",
+    "image": "https://images.unsplash.com/photo-...",
+    "participants": [...],
+    "registeredParticipants": 5,
+    "duration": "7 days",
+    "communityImpact": {
+      "co2SavedKg": 12,
+      "plasticReducedKg": 3,
+      "waterSavedL": 120,
+      "energySavedKwh": 8
+    },
+    "startDate": "2025-11-16T00:00:00.000Z",
+    "endDate": "2025-11-23T00:00:00.000Z",
+    "featured": true,
+    "status": "active",
+    "createdBy": "09i0WdoHaWSQ7p55EAvMeJ5FddC3",
+    "createdAt": "2025-11-16T05:39:04.462Z",
+    "updatedAt": "2025-11-16T05:39:04.462Z",
+    "isJoined": true,
+    "isCreator": false
+  }
+}
+
+Example Usage:
+  GET /api/challenges/slug/zero-waste-meal-week
+
+Frontend Flow:
+  1. User clicks challenge from list
+  2. Navigate to: /challenges/zero-waste-meal-week (using slug)
+  3. Fetch data using: GET /api/challenges/slug/zero-waste-meal-week
+  4. Store _id for operations (join, leave, etc.)
+
+
+================================================================================
+3. CREATE NEW CHALLENGE
+================================================================================
+POST /api/challenges
+
+Authentication: Required (Bearer token)
+
+Request Body:
+{
+  "category": "Food",
+  "title": "Zero-Waste Meal for Week",
+  "shortDescription": "Cook using ingredients already at home",
+  "detailedDescription": "Most households throw away a surprising amount...",
+  "image": "https://images.unsplash.com/photo-...",
+  "duration": "7 days",
+  "communityImpact": {
+    "co2SavedKg": 12,
+    "plasticReducedKg": 3,
+    "waterSavedL": 120,
+    "energySavedKwh": 8
+  },
+  "startDate": "2025-11-16",
+  "endDate": "2025-11-23",
+  "featured": true
+}
+
+Validation Rules:
+  - category: Required, must be one of: Food, Waste Reduction, Energy Conservation, Water, Community
+  - title: Required, 5-100 characters, must be unique
+  - shortDescription: Required, 20-250 characters
+  - detailedDescription: Optional, max 2000 characters
+  - image: Required, valid HTTP/HTTPS URL
+  - duration: Required, 2-50 characters
+  - communityImpact: All fields required, must be non-negative numbers
+  - startDate: Required, must be today or future
+  - endDate: Required, must be after startDate
+  - featured: Optional, boolean
+
+Response:
+{
+  "success": true,
+  "message": "Challenge created successfully",
+  "data": {
+    "_id": "673868b0c7f8e9f4a2e1b234",
+    "slug": "zero-waste-meal-week",
+    ...
+  }
+}
+
+Error Response:
+{
+  "success": false,
+  "message": "Validation failed",
+  "errors": [
+    "Title must be between 5 and 100 characters",
+    "Start date must be today or in the future"
+  ]
+}
+
+
+================================================================================
+4. UPDATE CHALLENGE
+================================================================================
+PUT /api/challenges/:id
+
+URL Parameters:
+  - id: MongoDB _id (NOT slug)
+
+Authentication: Required (Bearer token, must be creator)
+
+Request Body: (All fields optional)
+{
+  "title": "Zero-Waste Meal Week Challenge",
+  "shortDescription": "Updated description",
+  "status": "active"
+}
+
+Notes:
+  - If title is updated, slug will be automatically regenerated
+  - Cannot update: participants, registeredParticipants, createdBy, createdAt
+  - Only the creator can update the challenge
+
+Response:
+{
+  "success": true,
+  "message": "Challenge updated successfully",
+  "data": {
+    "_id": "673868b0c7f8e9f4a2e1b234",
+    "slug": "zero-waste-meal-week-challenge",
+    ...
+  }
+}
+
+
+================================================================================
+5. DELETE CHALLENGE
+================================================================================
+DELETE /api/challenges/:id
+
+URL Parameters:
+  - id: MongoDB _id (NOT slug)
+
+Authentication: Required (Bearer token, must be creator)
+
+Behavior:
+  - If challenge has active participants: Status changed to "cancelled" (soft delete)
+  - If no participants: Challenge is permanently deleted (hard delete)
+
+Response:
+{
+  "success": true,
+  "message": "Challenge deleted successfully"
+}
+
+
+================================================================================
+6. JOIN CHALLENGE
+================================================================================
+POST /api/challenges/:id/join
+
+URL Parameters:
+  - id: MongoDB _id (NOT slug)
+
+Authentication: Required (Bearer token)
+
+Request Body: None
+
+Notes:
+  - Can rejoin unlimited times after leaving
+  - Cannot join your own challenge
+  - Cannot join if already active participant
+  - Can only join active challenges
+
+Response:
+{
+  "success": true,
+  "message": "Successfully joined the challenge",
+  "data": {
+    "_id": "673868b0c7f8e9f4a2e1b234",
+    "slug": "zero-waste-meal-week",
+    "registeredParticipants": 6,
+    ...
+  }
+}
+
+Error Response:
+{
+  "success": false,
+  "message": "You have already joined this challenge",
+  "error": "ALREADY_JOINED"
+}
+
+
+================================================================================
+7. LEAVE CHALLENGE
+================================================================================
+POST /api/challenges/:id/leave
+
+URL Parameters:
+  - id: MongoDB _id (NOT slug)
+
+Authentication: Required (Bearer token)
+
+Request Body: None
+
+Notes:
+  - Participant status changes to "left"
+  - Can rejoin later
+  - Participant count decreases
+
+Response:
+{
+  "success": true,
+  "message": "Successfully left the challenge",
+  "data": {
+    "_id": "673868b0c7f8e9f4a2e1b234",
+    "slug": "zero-waste-meal-week",
+    "registeredParticipants": 5,
+    ...
+  }
+}
+
+
+================================================================================
+8. GET MY CREATED CHALLENGES
+================================================================================
+GET /api/challenges/my/created
+
+Authentication: Required (Bearer token)
+
+Response:
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "673868b0c7f8e9f4a2e1b234",
+      "slug": "zero-waste-meal-week",
+      "isCreator": true,
+      ...
+    }
+  ],
+  "count": 3
+}
+
+
+================================================================================
+9. GET MY JOINED CHALLENGES
+================================================================================
+GET /api/challenges/my/joined
+
+Authentication: Required (Bearer token)
+
+Query Parameters:
+  - status (optional): Filter by participant status (active, left)
+  - includeCompleted (optional): Include completed challenges (true/false)
+
+Response:
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "673868b0c7f8e9f4a2e1b234",
+      "slug": "zero-waste-meal-week",
+      ...
+    }
+  ],
+  "count": 5
+}
+
+
+================================================================================
+10. GET CHALLENGE PARTICIPANTS
+================================================================================
+GET /api/challenges/:id/participants
+
+URL Parameters:
+  - id: MongoDB _id (NOT slug)
+
+Authentication: Optional
+
+Response (if requester is creator):
+{
+  "success": true,
+  "participants": [
+    {
+      "userId": "uaCPRfpnE2YaPFORYW8ndHdduoM2",
+      "joinedAt": "2025-11-16T07:20:46.259Z",
+      "status": "active"
+    }
+  ],
+  "count": 5
+}
+
+Response (if requester is not creator):
+{
+  "success": true,
+  "count": 5,
+  "message": "Participant details available to creator only"
+}
+
+
+================================================================================
+11. GET COMMUNITY IMPACT SUMMARY
+================================================================================
+GET /api/challenges/community-impact/summary
+
+Authentication: Not required
+
+Response:
+{
+  "success": true,
+  "data": {
+    "co2SavedKg": 1250,
+    "plasticReducedKg": 340,
+    "waterSavedL": 12500,
+    "energySavedKwh": 890
+  }
+}
+
+
+================================================================================
+FRONTEND IMPLEMENTATION GUIDE
+================================================================================
+
+1. ROUTING STRUCTURE:
+   - List page: /challenges
+   - Detail page: /challenges/:slug (SEO-friendly)
+   
+2. DATA FLOW:
+   a. List challenges → Store both _id and slug
+   b. Navigate using slug → /challenges/zero-waste-meal-week
+   c. Fetch details using slug → GET /api/challenges/slug/zero-waste-meal-week
+   d. Perform operations using _id → POST /api/challenges/{_id}/join
+
+3. EXAMPLE CODE:
+
+   // List challenges
+   const challenges = await fetch('/api/challenges?category=Food');
+   
+   // Navigate to detail page
+   navigate(`/challenges/${challenge.slug}`);
+   
+   // Fetch challenge detail
+   const detail = await fetch(`/api/challenges/slug/${slug}`);
+   
+   // Join challenge (use _id from detail)
+   await fetch(`/api/challenges/${detail.data._id}/join`, {
+     method: 'POST',
+     headers: { 'Authorization': `Bearer ${token}` }
+   });
+
+4. PARTICIPANT FLOW:
+   User → Join (status: active) → Leave (status: left) → Rejoin (status: active)
+
+5. CATEGORIES:
+   - Food
+   - Waste Reduction
+   - Energy Conservation
+   - Water
+   - Community
+
+6. STATUSES:
+   - active: Challenge is ongoing
+   - completed: Challenge has ended
+   - cancelled: Challenge was cancelled
+
+7. SLUG AUTO-INCREMENT:
+   - "Zero-Waste Meal" → slug: "zero-waste-meal"
+   - If duplicate: "zero-waste-meal-1", "zero-waste-meal-2", etc.
+
+
+================================================================================
+ERROR CODES
+================================================================================
+
+400 Bad Request:
+  - DUPLICATE_TITLE: Title already exists
+  - ALREADY_JOINED: User already participating
+  - NOT_JOINED: User not participating in challenge
+  - Validation errors
+
+403 Forbidden:
+  - User not authorized to update/delete
+
+404 Not Found:
+  - Challenge not found
+
+500 Internal Server Error:
+  - Server error
+
+
+================================================================================
+AUTHENTICATION
+================================================================================
+
+Required Headers:
+  Authorization: Bearer <firebase-token>
+
+Public Endpoints (no auth required):
+  - GET /api/challenges
+  - GET /api/challenges/slug/:slug
+  - GET /api/challenges/community-impact/summary
+
+Protected Endpoints (auth required):
+  - POST /api/challenges
+  - PUT /api/challenges/:id
+  - DELETE /api/challenges/:id
+  - POST /api/challenges/:id/join
+  - POST /api/challenges/:id/leave
+  - GET /api/challenges/my/created
+  - GET /api/challenges/my/joined
+
+
+================================================================================
+IMPORTANT NOTES
+================================================================================
+
+1. Always use SLUG for URLs and viewing (SEO-friendly)
+2. Always use _ID for operations (join, leave, update, delete)
+3. Users can join, leave, and rejoin unlimited times
+4. Participant status: "active" or "left"
+5. Slug automatically regenerates when title is updated
+6. Duplicate titles get auto-incremented slugs (-1, -2, etc.)
+7. Challenge with participants cannot be deleted, only cancelled
+8. Only challenge creator can update/delete their challenges
+
+================================================================================

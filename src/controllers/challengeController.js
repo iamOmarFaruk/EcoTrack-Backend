@@ -3,6 +3,7 @@ const {
   createChallenge,
   getChallenges,
   getChallengeById,
+  getChallengeBySlug,
   updateChallenge,
   deleteChallenge,
   joinChallenge,
@@ -229,15 +230,15 @@ exports.getAllChallenges = async (req, res) => {
 };
 
 /**
- * GET /api/challenges/:id
- * Get single challenge with full details
+ * GET /api/challenges/slug/:slug
+ * Get single challenge with full details by slug (SEO-friendly)
  */
-exports.getChallengeDetails = async (req, res) => {
+exports.getChallengeBySlug = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { slug } = req.params;
     const userId = req.user?.uid || null;
 
-    const challenge = await getChallengeById(id, userId);
+    const challenge = await getChallengeBySlug(slug, userId);
 
     if (!challenge) {
       return res.status(404).json({

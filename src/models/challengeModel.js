@@ -23,18 +23,34 @@ const DEFAULT_IMAGES = {
 };
 
 /**
- * Generate unique challenge ID from title and timestamp
+ * Generate unique slug from title with auto-increment
  */
-function generateChallengeId(title) {
-  const slug = title
+async function generateUniqueSlug(title, excludeId = null) {
+  const baseSlug = title
     .toLowerCase()
     .trim()
     .replace(/[^\w\s-]/g, "")
     .replace(/[\s_-]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-  const timestamp = Math.floor(Date.now() / 1000);
-  return `${slug}-${timestamp}`;
+  let slug = baseSlug;
+  let counter = 1;
+
+  // Check if slug exists
+  while (true) {
+    const query = { slug };
+    if (excludeId) {
+      query._id = { $ne: excludeId };
+    }
+    
+    const existing = await Challenge.findOne(query).lean();
+    if (!existing) break;
+    
+    slug = `${baseSlug}-${counter}`;
+    counter++;
+  }
+
+  return slug;
 }
 
 const participantSchema = new mongoose.Schema(
@@ -47,7 +63,7 @@ const participantSchema = new mongoose.Schema(
 );
 
 const challengeSchema = new mongoose.Schema({
-  id: { type: String, required: true, unique: true },
+  slug: { type: String, required: true, unique: true, index: true },
   category: { type: String, required: true },
   title: { type: String, required: true },
   shortDescription: { type: String, required: true },
@@ -83,8 +99,10 @@ const Challenge =
 async function createChallenge(challengeData, userId) {
   const now = new Date().toISOString();
 
+  const slug = await generateUniqueSlug(challengeData.title);
+
   const challenge = new Challenge({
-    id: generateChallengeId(challengeData.title),
+    slug,
     category: challengeData.category,
     title: challengeData.title.trim(),
     shortDescription: challengeData.shortDescription.trim(),
@@ -168,10 +186,10 @@ async function getChallenges(filters = {}) {
 }
 
 /**
- * Get challenge by ID
+ * Get challenge by slug (for viewing)
  */
-async function getChallengeById(id, userId = null) {
-  const challenge = await Challenge.findOne({ id }).lean();
+async function getChallengeBySlug(slug, userId = null) {
+  const challenge = await Challenge.findOne({ slug }).lean();
 
   if (!challenge) return null;
 
@@ -179,7 +197,26 @@ async function getChallengeById(id, userId = null) {
   if (userId) {
     challenge.isCreator = challenge.createdBy === userId;
     challenge.isJoined = challenge.participants.some(
-      (p) => p.userId === userId && p.status === "joined"
+      (p) => p.userId === userId && p.status === "active"
+    );
+  }
+
+  return challenge;
+}
+
+/**
+ * Get challenge by MongoDB _id (for operations)
+ */
+async function getChallengeById(id, userId = null) {
+  const challenge = await Challenge.findById(id).lean();
+
+  if (!challenge) return null;
+
+  // Add computed fields if user is authenticated
+  if (userId) {
+    challenge.isCreator = challenge.createdBy === userId;
+    challenge.isJoined = challenge.participants.some(
+      (p) => p.userId === userId && p.status === "active"
     );
   }
 
@@ -191,13 +228,18 @@ async function getChallengeById(id, userId = null) {
  */
 async function updateChallenge(id, updateData, userId) {
   // Remove fields that shouldn't be updated directly
-  const { _id, id: challengeId, createdAt, createdBy, participants, registeredParticipants, ...allowedUpdates } = updateData;
+  const { _id, slug, createdAt, createdBy, participants, registeredParticipants, ...allowedUpdates } = updateData;
+
+  // If title is being updated, regenerate slug
+  if (allowedUpdates.title) {
+    allowedUpdates.slug = await generateUniqueSlug(allowedUpdates.title, id);
+  }
 
   // Add updatedAt timestamp
   allowedUpdates.updatedAt = new Date().toISOString();
 
   const result = await Challenge.findOneAndUpdate(
-    { id, createdBy: userId },
+    { _id: id, createdBy: userId },
     { $set: allowedUpdates },
     { new: true }
   ).lean();
@@ -209,7 +251,7 @@ async function updateChallenge(id, updateData, userId) {
  * Delete challenge
  */
 async function deleteChallenge(id, userId) {
-  const challenge = await Challenge.findOne({ id, createdBy: userId }).lean();
+  const challenge = await Challenge.findOne({ _id: id, createdBy: userId }).lean();
   
   if (!challenge) {
     return { success: false, error: "not_found" };
@@ -218,7 +260,7 @@ async function deleteChallenge(id, userId) {
   // If has active participants, cancel instead of delete
   if (challenge.registeredParticipants > 0) {
     const result = await Challenge.updateOne(
-      { id, createdBy: userId },
+      { _id: id, createdBy: userId },
       {
         $set: {
           status: "cancelled",
@@ -234,7 +276,7 @@ async function deleteChallenge(id, userId) {
   }
 
   // Hard delete if no participants
-  const result = await Challenge.deleteOne({ id, createdBy: userId });
+  const result = await Challenge.deleteOne({ _id: id, createdBy: userId });
   return { 
     success: result.deletedCount > 0,
     cancelled: false,
@@ -243,48 +285,57 @@ async function deleteChallenge(id, userId) {
 }
 
 /**
- * Join challenge - atomic operation
+ * Join challenge - allows unlimited rejoining
  */
 async function joinChallenge(id, userId) {
-  const result = await Challenge.updateOne(
-    {
-      id,
-      status: "active",
-      "participants.userId": { $ne: userId }, // User hasn't joined
-      createdBy: { $ne: userId }, // Not the creator
-    },
-    {
-      $inc: { registeredParticipants: 1 },
-      $push: {
-        participants: {
-          userId,
-          joinedAt: new Date().toISOString(),
-          status: "joined",
-        },
-      },
-      $set: { updatedAt: new Date().toISOString() },
-    }
+  const challenge = await Challenge.findById(id);
+  
+  if (!challenge) {
+    return { success: false, error: "not_found" };
+  }
+  
+  if (challenge.createdBy === userId) {
+    return { success: false, error: "creator_cannot_join" };
+  }
+  
+  if (challenge.status !== "active") {
+    return { success: false, error: "not_active" };
+  }
+
+  // Check if user already has an active participation
+  const existingParticipant = challenge.participants.find(
+    (p) => p.userId === userId && p.status === "active"
   );
 
-  if (result.modifiedCount === 0) {
-    // Determine specific error
-    const challenge = await collection.findOne({ id });
-    
-    if (!challenge) {
-      return { success: false, error: "not_found" };
-    }
-    if (challenge.createdBy === userId) {
-      return { success: false, error: "creator_cannot_join" };
-    }
-    if (challenge.status !== "active") {
-      return { success: false, error: "not_active" };
-    }
-    if (challenge.participants.some(p => p.userId === userId && p.status === "joined")) {
-      return { success: false, error: "already_joined" };
-    }
-    
-    return { success: false, error: "unknown" };
+  if (existingParticipant) {
+    return { success: false, error: "already_joined" };
   }
+
+  // Find if user has left before
+  const participantIndex = challenge.participants.findIndex(
+    (p) => p.userId === userId
+  );
+
+  if (participantIndex !== -1) {
+    // User rejoining - update existing entry
+    challenge.participants[participantIndex].status = "active";
+    challenge.participants[participantIndex].joinedAt = new Date();
+  } else {
+    // New participant
+    challenge.participants.push({
+      userId,
+      joinedAt: new Date(),
+      status: "active",
+    });
+  }
+
+  // Update registered participants count
+  challenge.registeredParticipants = challenge.participants.filter(
+    (p) => p.status === "active"
+  ).length;
+  challenge.updatedAt = new Date();
+
+  await challenge.save();
 
   // Fetch updated challenge
   const updatedChallenge = await getChallengeById(id, userId);
@@ -292,15 +343,15 @@ async function joinChallenge(id, userId) {
 }
 
 /**
- * Leave challenge - atomic operation
+ * Leave challenge
  */
 async function leaveChallenge(id, userId) {
   const challenge = await Challenge.findOne({
-    id,
+    _id: id,
     "participants": {
       $elemMatch: {
         userId,
-        status: "joined"
+        status: "active"
       }
     }
   });
@@ -309,33 +360,25 @@ async function leaveChallenge(id, userId) {
     return { success: false, error: "not_joined" };
   }
 
-  // Find the index of the participant
-  const participantIndex = challenge.participants.findIndex(
-    p => p.userId === userId && p.status === "joined"
+  // Find the participant
+  const participant = challenge.participants.find(
+    p => p.userId === userId && p.status === "active"
   );
 
-  if (participantIndex === -1) {
+  if (!participant) {
     return { success: false, error: "not_joined" };
   }
 
-  // Update using positional operator
-  const result = await Challenge.updateOne(
-    {
-      id,
-      "participants.userId": userId,
-    },
-    {
-      $inc: { registeredParticipants: -1 },
-      $set: {
-        [`participants.${participantIndex}.status`]: "left",
-        updatedAt: new Date().toISOString(),
-      },
-    }
-  );
+  // Update participant status to left
+  participant.status = "left";
 
-  if (result.modifiedCount === 0) {
-    return { success: false, error: "not_joined" };
-  }
+  // Update registered participants count
+  challenge.registeredParticipants = challenge.participants.filter(
+    (p) => p.status === "active"
+  ).length;
+  challenge.updatedAt = new Date();
+
+  await challenge.save();
 
   // Fetch updated challenge
   const updatedChallenge = await getChallengeById(id, userId);
@@ -361,7 +404,7 @@ async function getMyJoinedChallenges(userId, filters = {}) {
     participants: {
       $elemMatch: {
         userId,
-        status: filters.status || "joined",
+        status: filters.status || "active",
       },
     },
   };
@@ -408,14 +451,14 @@ async function getCommunityImpactTotals() {
  * Get challenge participants
  */
 async function getChallengeParticipants(id, userId = null) {
-  const challenge = await Challenge.findOne({ id }).lean();
+  const challenge = await Challenge.findById(id).lean();
 
   if (!challenge) return null;
 
   // If user is creator, return full participant list
   if (userId && challenge.createdBy === userId) {
     return {
-      participants: challenge.participants,
+      participants: challenge.participants.filter(p => p.status === "active"),
       count: challenge.registeredParticipants,
     };
   }
@@ -436,7 +479,7 @@ async function isTitleUnique(title, excludeId = null) {
   };
 
   if (excludeId) {
-    query.id = { $ne: excludeId };
+    query._id = { $ne: excludeId };
   }
 
   const existing = await Challenge.findOne(query).lean();
@@ -446,10 +489,11 @@ async function isTitleUnique(title, excludeId = null) {
 module.exports = {
   VALID_CATEGORIES,
   DEFAULT_IMAGES,
-  generateChallengeId,
+  generateUniqueSlug,
   createChallenge,
   getChallenges,
   getChallengeById,
+  getChallengeBySlug,
   updateChallenge,
   deleteChallenge,
   joinChallenge,
