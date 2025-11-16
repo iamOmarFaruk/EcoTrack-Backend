@@ -1,34 +1,35 @@
-const database = require('../config/database');
+const { mongoose } = require('../config/mongoose');
 
-/**
- * Tips Model (MongoDB Native Driver)
- * 
- * Collection: tips
- * 
- * Document Structure:
- * {
- *   _id: ObjectId,
- *   id: string,               // URL-friendly unique ID (e.g., "tip-1731668400123")
- *   title: string,            // 5-100 chars
- *   content: string,          // 20-500 chars
- *   authorId: string,         // Firebase UID
- *   authorName: string,       // Author display name
- *   authorImage: string,      // Author photo URL (nullable)
- *   upvoteCount: Number,      // Total upvote count
- *   upvotes: Array,           // Array of {userId, votedAt}
- *   createdAt: Date,
- *   updatedAt: Date,
- *   isEdited: boolean         // Computed field
- * }
- */
+const upvoteSchema = new mongoose.Schema({
+  userId: { type: String, required: true },
+  votedAt: { type: Date, default: Date.now }
+}, { _id: false });
+
+const tipSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  title: { type: String, required: true },
+  content: { type: String, required: true },
+  authorId: { type: String, required: true },
+  authorName: { type: String, required: true },
+  authorImage: { type: String, default: null },
+  upvoteCount: { type: Number, default: 0 },
+  upvotes: { type: [upvoteSchema], default: [] },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+tipSchema.index({ title: 'text', content: 'text' });
+
+const Tip = mongoose.models.Tip || mongoose.model('Tip', tipSchema);
+
+/** Tips Model */
 
 class TipModel {
   /**
    * Get the tips collection
    */
   static async getCollection() {
-    const db = database.getDb();
-    return db.collection('tips');
+    return Tip;
   }
 
   /**
@@ -101,7 +102,7 @@ class TipModel {
   static async create(tipData) {
     const collection = await this.getCollection();
     
-    const tip = {
+    const tip = await collection.create({
       id: this.generateTipId(),
       title: tipData.title.trim(),
       content: tipData.content.trim(),
@@ -109,13 +110,10 @@ class TipModel {
       authorName: tipData.authorName,
       authorImage: tipData.authorImage || null,
       upvoteCount: 0,
-      upvotes: [],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
+      upvotes: []
+    });
 
-    const result = await collection.insertOne(tip);
-    return { ...tip, _id: result.insertedId };
+    return tip.toObject();
   }
 
   /**
@@ -154,11 +152,11 @@ class TipModel {
     // Execute query
     const tips = await collection
       .find(query)
-      .project({ upvotes: 0 }) // Exclude upvotes array from list view
+      .select('-upvotes')
       .sort(sort)
       .skip(skip)
       .limit(limit)
-      .toArray();
+      .lean();
 
     // Get total count
     const total = await collection.countDocuments(query);
@@ -180,8 +178,8 @@ class TipModel {
   static async findById(id, includeUpvotes = false) {
     const collection = await this.getCollection();
     
-    const projection = includeUpvotes ? {} : { upvotes: 0 };
-    const tip = await collection.findOne({ id }, { projection });
+    const projection = includeUpvotes ? {} : '-upvotes';
+    const tip = await collection.findOne({ id }).select(projection).lean();
     
     return tip ? this.computeFields(tip) : null;
   }
@@ -193,7 +191,7 @@ class TipModel {
     const collection = await this.getCollection();
     
     // Check if user is the author
-    const tip = await collection.findOne({ id });
+    const tip = await collection.findOne({ id }).lean();
     if (!tip) {
       return { success: false, error: 'Tip not found' };
     }
@@ -217,15 +215,15 @@ class TipModel {
       update.$set.content = updateData.content.trim();
     }
 
-    const result = await collection.findOneAndUpdate(
+    const updated = await collection.findOneAndUpdate(
       { id },
       update,
-      { returnDocument: 'after' }
-    );
+      { new: true }
+    ).lean();
 
     return {
       success: true,
-      tip: this.computeFields(result.value)
+      tip: this.computeFields(updated)
     };
   }
 
@@ -236,7 +234,7 @@ class TipModel {
     const collection = await this.getCollection();
     
     // Check if user is the author
-    const tip = await collection.findOne({ id });
+    const tip = await collection.findOne({ id }).lean();
     if (!tip) {
       return { success: false, error: 'Tip not found' };
     }
@@ -257,7 +255,7 @@ class TipModel {
     const collection = await this.getCollection();
     
     // First, get the tip to check various conditions
-    const tip = await collection.findOne({ id });
+    const tip = await collection.findOne({ id }).lean();
     
     if (!tip) {
       return { success: false, error: 'Tip not found', code: 'NOT_FOUND' };
@@ -286,7 +284,7 @@ class TipModel {
     }
 
     // Atomic upvote operation
-    const result = await collection.findOneAndUpdate(
+    const updatedTip = await collection.findOneAndUpdate(
       { id },
       {
         $inc: { upvoteCount: 1 },
@@ -297,11 +295,8 @@ class TipModel {
           }
         }
       },
-      { returnDocument: 'after' }
-    );
-
-    // Safely handle case where result.value or upvotes might be missing
-    const updatedTip = result.value || {};
+      { new: true }
+    ).lean();
     const updatedUpvotes = Array.isArray(updatedTip.upvotes) ? updatedTip.upvotes : [];
     const updatedUserUpvotesCount = updatedUpvotes.filter(v => v.userId === userId).length;
 
@@ -325,10 +320,10 @@ class TipModel {
       .find({
         createdAt: { $gte: daysAgo }
       })
-      .project({ upvotes: 0 })
+      .select('-upvotes')
       .sort({ upvoteCount: -1 })
       .limit(limit)
-      .toArray();
+      .lean();
 
     return tips.map(tip => this.computeFields(tip));
   }

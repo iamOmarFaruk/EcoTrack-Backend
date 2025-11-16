@@ -4,7 +4,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 
-// Import database connection
+// Import database connection (Mongoose-based)
 const database = require('./config/database');
 
 // Import Firebase configuration
@@ -31,7 +31,7 @@ const { notFound } = require('./middleware/notFound');
 const app = express();
 
 // Initialize database connection
-async function initializeDatabase() {
+(async function initializeDatabase() {
   try {
     await database.connect();
     console.log('🌱 Database connection established');
@@ -39,10 +39,7 @@ async function initializeDatabase() {
     console.error('❌ Database connection failed:', error.message);
     process.exit(1);
   }
-}
-
-// Initialize database when app starts
-initializeDatabase();
+})();
 
 // Initialize Firebase
 try {

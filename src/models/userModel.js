@@ -1,120 +1,73 @@
-/**
- * User Model - MongoDB Operations
- * Handles all user-related database operations
- */
+const { mongoose } = require('../config/mongoose');
 
-const { ObjectId } = require('mongodb');
-const database = require('../config/database');
+const userSchema = new mongoose.Schema({
+  firebaseUid: { type: String, required: true, unique: true },
+  email: { type: String, required: true },
+  displayName: { type: String, required: true },
+  photoURL: { type: String, default: null },
+  bio: { type: String, default: '' },
+  location: { type: String, default: '' },
+  preferences: {
+    privacy: { type: String, default: 'public' },
+    notifications: {
+      email: { type: Boolean, default: true },
+      push: { type: Boolean, default: true },
+      challenges: { type: Boolean, default: true },
+      tips: { type: Boolean, default: true },
+      events: { type: Boolean, default: true },
+    },
+  },
+  role: { type: String, default: 'user' },
+  joinedAt: { type: Date, default: Date.now },
+  lastActive: { type: Date, default: Date.now },
+  stats: {
+    challengesJoined: { type: Number, default: 0 },
+    challengesCompleted: { type: Number, default: 0 },
+    eventsAttended: { type: Number, default: 0 },
+    tipsShared: { type: Number, default: 0 },
+    totalImpactPoints: { type: Number, default: 0 },
+    streak: { type: Number, default: 0 },
+  },
+  isActive: { type: Boolean, default: true },
+});
 
+const User = mongoose.models.User || mongoose.model('User', userSchema);
 
-
-// MongoDB User Operations
 const userDb = {
-  // Find user by Firebase UID
   async findByFirebaseUid(firebaseUid) {
-    try {
-      const db = database.getDb();
-      return await db.collection('users').findOne({ firebaseUid });
-    } catch (error) {
-      throw new Error(`Error finding user by Firebase UID: ${error.message}`);
-    }
+    return User.findOne({ firebaseUid }).lean();
   },
 
-  // Find user by ID
   async findById(id) {
-    try {
-      const db = database.getDb();
-      return await db.collection('users').findOne({ _id: new ObjectId(id) });
-    } catch (error) {
-      throw new Error(`Error finding user by ID: ${error.message}`);
-    }
+    return User.findById(id).lean();
   },
 
-  // Create new user
   async create(userData) {
-    try {
-      const db = database.getDb();
-      const newUser = {
-        ...userData,
-        joinedAt: new Date(),
-        lastActive: new Date(),
-        preferences: {
-          notifications: true,
-          newsletter: true,
-          privacy: "public"
-        },
-        stats: {
-          challengesJoined: 0,
-          challengesCompleted: 0,
-          eventsAttended: 0,
-          tipsShared: 0,
-          totalImpactPoints: 0
-        },
-        role: "user",
-        isActive: true
-      };
-      
-      const result = await db.collection('users').insertOne(newUser);
-      return { ...newUser, _id: result.insertedId };
-    } catch (error) {
-      throw new Error(`Error creating user: ${error.message}`);
-    }
+    const user = await User.create(userData);
+    return user.toObject();
   },
 
-  // Update user
   async update(firebaseUid, updateData) {
-    try {
-      const db = database.getDb();
-      const result = await db.collection('users').findOneAndUpdate(
-        { firebaseUid },
-        { 
-          $set: { 
-            ...updateData, 
-            lastActive: new Date() 
-          } 
-        },
-        { returnDocument: 'after' }
-      );
-      return result.value;
-    } catch (error) {
-      throw new Error(`Error updating user: ${error.message}`);
-    }
+    const user = await User.findOneAndUpdate(
+      { firebaseUid },
+      { ...updateData, lastActive: new Date() },
+      { new: true }
+    ).lean();
+    return user;
   },
 
-  // Get all users (admin only)
   async findAll(limit = 50, skip = 0) {
-    try {
-      const db = database.getDb();
-      const users = await db.collection('users')
-        .find({}, { projection: { firebaseUid: 0 } })
-        .limit(limit)
-        .skip(skip)
-        .toArray();
-      return users;
-    } catch (error) {
-      throw new Error(`Error finding all users: ${error.message}`);
-    }
+    return User.find({}, { firebaseUid: 0 }).limit(limit).skip(skip).lean();
   },
 
-  // Update user stats
   async updateStats(firebaseUid, statUpdates) {
-    try {
-      const db = database.getDb();
-      const result = await db.collection('users').findOneAndUpdate(
-        { firebaseUid },
-        { 
-          $inc: statUpdates,
-          $set: { lastActive: new Date() }
-        },
-        { returnDocument: 'after' }
-      );
-      return result.value;
-    } catch (error) {
-      throw new Error(`Error updating user stats: ${error.message}`);
-    }
+    const user = await User.findOneAndUpdate(
+      { firebaseUid },
+      { $inc: statUpdates, lastActive: new Date() },
+      { new: true }
+    ).lean();
+    return user;
   },
-
-
 };
 
 // MongoDB Statistics Operations

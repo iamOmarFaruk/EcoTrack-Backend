@@ -1,7 +1,4 @@
-const database = require("../config/database");
-const { ObjectId } = require("mongodb");
-
-const COLLECTION_NAME = "challenges";
+const { mongoose } = require("../config/mongoose");
 
 // Predefined categories
 const VALID_CATEGORIES = [
@@ -40,22 +37,53 @@ function generateChallengeId(title) {
   return `${slug}-${timestamp}`;
 }
 
-/**
- * Get challenges collection
- */
-function getChallengesCollection() {
-  const db = database.getDb();
-  return db.collection(COLLECTION_NAME);
-}
+const participantSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true },
+    joinedAt: { type: Date, default: Date.now },
+    status: { type: String, default: "joined" },
+  },
+  { _id: false }
+);
+
+const challengeSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  category: { type: String, required: true },
+  title: { type: String, required: true },
+  shortDescription: { type: String, required: true },
+  detailedDescription: { type: String, default: "" },
+  image: { type: String, required: true },
+  participants: { type: [participantSchema], default: [] },
+  registeredParticipants: { type: Number, default: 0 },
+  duration: { type: String, required: true },
+  communityImpact: {
+    co2SavedKg: { type: Number, default: 0 },
+    plasticReducedKg: { type: Number, default: 0 },
+    waterSavedL: { type: Number, default: 0 },
+    energySavedKwh: { type: Number, default: 0 },
+  },
+  startDate: { type: Date, required: true },
+  endDate: { type: Date, required: true },
+  featured: { type: Boolean, default: false },
+  status: { type: String, default: "active" },
+  createdBy: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+challengeSchema.index({ category: 1, isActive: 1 });
+challengeSchema.index({ title: "text", shortDescription: "text", detailedDescription: "text" });
+
+const Challenge =
+  mongoose.models.Challenge || mongoose.model("Challenge", challengeSchema);
 
 /**
  * Create a new challenge
  */
 async function createChallenge(challengeData, userId) {
-  const collection = getChallengesCollection();
   const now = new Date().toISOString();
 
-  const challenge = {
+  const challenge = new Challenge({
     id: generateChallengeId(challengeData.title),
     category: challengeData.category,
     title: challengeData.title.trim(),
@@ -82,18 +110,16 @@ async function createChallenge(challengeData, userId) {
     createdBy: userId,
     createdAt: now,
     updatedAt: now,
-  };
+  });
 
-  const result = await collection.insertOne(challenge);
-  return { ...challenge, _id: result.insertedId };
+  await challenge.save();
+  return challenge.toObject();
 }
 
 /**
  * Get all challenges with filters and pagination
  */
 async function getChallenges(filters = {}) {
-  const collection = getChallengesCollection();
-
   const {
     page = 1,
     limit = 10,
@@ -126,8 +152,8 @@ async function getChallenges(filters = {}) {
 
   // Execute queries
   const [challenges, total] = await Promise.all([
-    collection.find(query).sort(sort).skip(skip).limit(limit).toArray(),
-    collection.countDocuments(query),
+    Challenge.find(query).sort(sort).skip(skip).limit(limit).lean(),
+    Challenge.countDocuments(query),
   ]);
 
   return {
@@ -145,8 +171,7 @@ async function getChallenges(filters = {}) {
  * Get challenge by ID
  */
 async function getChallengeById(id, userId = null) {
-  const collection = getChallengesCollection();
-  const challenge = await collection.findOne({ id });
+  const challenge = await Challenge.findOne({ id }).lean();
 
   if (!challenge) return null;
 
@@ -165,19 +190,17 @@ async function getChallengeById(id, userId = null) {
  * Update challenge
  */
 async function updateChallenge(id, updateData, userId) {
-  const collection = getChallengesCollection();
-
   // Remove fields that shouldn't be updated directly
   const { _id, id: challengeId, createdAt, createdBy, participants, registeredParticipants, ...allowedUpdates } = updateData;
 
   // Add updatedAt timestamp
   allowedUpdates.updatedAt = new Date().toISOString();
 
-  const result = await collection.findOneAndUpdate(
+  const result = await Challenge.findOneAndUpdate(
     { id, createdBy: userId },
     { $set: allowedUpdates },
-    { returnDocument: "after" }
-  );
+    { new: true }
+  ).lean();
 
   return result;
 }
@@ -186,10 +209,7 @@ async function updateChallenge(id, updateData, userId) {
  * Delete challenge
  */
 async function deleteChallenge(id, userId) {
-  const collection = getChallengesCollection();
-
-  // Check if challenge has participants
-  const challenge = await collection.findOne({ id, createdBy: userId });
+  const challenge = await Challenge.findOne({ id, createdBy: userId }).lean();
   
   if (!challenge) {
     return { success: false, error: "not_found" };
@@ -197,13 +217,13 @@ async function deleteChallenge(id, userId) {
 
   // If has active participants, cancel instead of delete
   if (challenge.registeredParticipants > 0) {
-    const result = await collection.updateOne(
+    const result = await Challenge.updateOne(
       { id, createdBy: userId },
-      { 
-        $set: { 
+      {
+        $set: {
           status: "cancelled",
-          updatedAt: new Date().toISOString()
-        } 
+          updatedAt: new Date().toISOString(),
+        },
       }
     );
     return { 
@@ -214,7 +234,7 @@ async function deleteChallenge(id, userId) {
   }
 
   // Hard delete if no participants
-  const result = await collection.deleteOne({ id, createdBy: userId });
+  const result = await Challenge.deleteOne({ id, createdBy: userId });
   return { 
     success: result.deletedCount > 0,
     cancelled: false,
@@ -226,9 +246,7 @@ async function deleteChallenge(id, userId) {
  * Join challenge - atomic operation
  */
 async function joinChallenge(id, userId) {
-  const collection = getChallengesCollection();
-
-  const result = await collection.updateOne(
+  const result = await Challenge.updateOne(
     {
       id,
       status: "active",
@@ -277,10 +295,7 @@ async function joinChallenge(id, userId) {
  * Leave challenge - atomic operation
  */
 async function leaveChallenge(id, userId) {
-  const collection = getChallengesCollection();
-
-  // First, find the participant index
-  const challenge = await collection.findOne({
+  const challenge = await Challenge.findOne({
     id,
     "participants": {
       $elemMatch: {
@@ -304,7 +319,7 @@ async function leaveChallenge(id, userId) {
   }
 
   // Update using positional operator
-  const result = await collection.updateOne(
+  const result = await Challenge.updateOne(
     {
       id,
       "participants.userId": userId,
@@ -331,11 +346,9 @@ async function leaveChallenge(id, userId) {
  * Get challenges created by user
  */
 async function getMyChallenges(userId) {
-  const collection = getChallengesCollection();
-  const challenges = await collection
-    .find({ createdBy: userId })
+  const challenges = await Challenge.find({ createdBy: userId })
     .sort({ createdAt: -1 })
-    .toArray();
+    .lean();
 
   return challenges;
 }
@@ -344,8 +357,6 @@ async function getMyChallenges(userId) {
  * Get challenges joined by user
  */
 async function getMyJoinedChallenges(userId, filters = {}) {
-  const collection = getChallengesCollection();
-  
   const query = {
     participants: {
       $elemMatch: {
@@ -360,10 +371,9 @@ async function getMyJoinedChallenges(userId, filters = {}) {
     query.status = { $ne: "completed" };
   }
 
-  const challenges = await collection
-    .find(query)
+  const challenges = await Challenge.find(query)
     .sort({ startDate: 1 })
-    .toArray();
+    .lean();
 
   return challenges;
 }
@@ -372,27 +382,25 @@ async function getMyJoinedChallenges(userId, filters = {}) {
  * Aggregate community impact across all challenges
  */
 async function getCommunityImpactTotals() {
-  const collection = getChallengesCollection();
-
-  const [result] = await collection
-    .aggregate([
-      {
-        $group: {
-          _id: null,
-          totalCo2SavedKg: { $sum: "$communityImpact.co2SavedKg" },
-          totalPlasticReducedKg: { $sum: "$communityImpact.plasticReducedKg" },
-          totalWaterSavedL: { $sum: "$communityImpact.waterSavedL" },
-          totalEnergySavedKwh: { $sum: "$communityImpact.energySavedKwh" },
-        },
+  const result = await Challenge.aggregate([
+    {
+      $group: {
+        _id: null,
+        totalCo2SavedKg: { $sum: "$communityImpact.co2SavedKg" },
+        totalPlasticReducedKg: { $sum: "$communityImpact.plasticReducedKg" },
+        totalWaterSavedL: { $sum: "$communityImpact.waterSavedL" },
+        totalEnergySavedKwh: { $sum: "$communityImpact.energySavedKwh" },
       },
-    ])
-    .toArray();
+    },
+  ]);
+
+  const totals = result[0] || {};
 
   return {
-    co2SavedKg: result?.totalCo2SavedKg || 0,
-    plasticReducedKg: result?.totalPlasticReducedKg || 0,
-    waterSavedL: result?.totalWaterSavedL || 0,
-    energySavedKwh: result?.totalEnergySavedKwh || 0,
+    co2SavedKg: totals.totalCo2SavedKg || 0,
+    plasticReducedKg: totals.totalPlasticReducedKg || 0,
+    waterSavedL: totals.totalWaterSavedL || 0,
+    energySavedKwh: totals.totalEnergySavedKwh || 0,
   };
 }
 
@@ -400,8 +408,7 @@ async function getCommunityImpactTotals() {
  * Get challenge participants
  */
 async function getChallengeParticipants(id, userId = null) {
-  const collection = getChallengesCollection();
-  const challenge = await collection.findOne({ id });
+  const challenge = await Challenge.findOne({ id }).lean();
 
   if (!challenge) return null;
 
@@ -424,7 +431,6 @@ async function getChallengeParticipants(id, userId = null) {
  * Check if title is unique (case-insensitive)
  */
 async function isTitleUnique(title, excludeId = null) {
-  const collection = getChallengesCollection();
   const query = {
     title: { $regex: new RegExp(`^${title}$`, "i") },
   };
@@ -433,7 +439,7 @@ async function isTitleUnique(title, excludeId = null) {
     query.id = { $ne: excludeId };
   }
 
-  const existing = await collection.findOne(query);
+  const existing = await Challenge.findOne(query).lean();
   return !existing;
 }
 
@@ -441,7 +447,6 @@ module.exports = {
   VALID_CATEGORIES,
   DEFAULT_IMAGES,
   generateChallengeId,
-  getChallengesCollection,
   createChallenge,
   getChallenges,
   getChallengeById,
