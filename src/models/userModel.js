@@ -56,6 +56,11 @@ const userDb = {
     return user;
   },
 
+  async delete(firebaseUid) {
+    const result = await User.deleteOne({ firebaseUid });
+    return result.deletedCount > 0;
+  },
+
   async findAll(limit = 50, skip = 0) {
     return User.find({}, { firebaseUid: 0 }).limit(limit).skip(skip).lean();
   },

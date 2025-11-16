@@ -483,6 +483,87 @@ class UserController {
       next(error);
     }
   }
+
+  /**
+   * Delete current user's account and related data
+   * DELETE /api/users/profile
+   */
+  async deleteMyAccount(req, res, next) {
+    try {
+      const firebaseUid = req.user.uid;
+
+      const { userDb } = require('../models/userModel');
+      const TipModel = require('../models/tipModel');
+      const { deleteChallenge, leaveChallenge, getMyChallenges, getMyJoinedChallenges } = require('../models/challengeModel');
+      const { getMyEvents, getMyJoinedEvents, leaveEvent, deleteEvent } = require('../models/eventModel');
+      const database = require('../config/database');
+      const db = database.getDb();
+      const { deleteUser } = require('../config/firebase');
+
+      // Delete tips authored by user
+      const Tip = await TipModel.getCollection();
+      await Tip.deleteMany({ authorId: firebaseUid });
+
+      // Handle challenges created by user
+      const myChallenges = await getMyChallenges(firebaseUid);
+      for (const challenge of myChallenges) {
+        await deleteChallenge(challenge.id, firebaseUid);
+      }
+
+      // Leave challenges the user joined
+      const joinedChallenges = await getMyJoinedChallenges(firebaseUid, { includeCompleted: true, status: 'joined' });
+      for (const challenge of joinedChallenges) {
+        await leaveChallenge(challenge.id, firebaseUid);
+      }
+
+      // Handle events created by user (cancel or delete via model logic)
+      const myEvents = await getMyEvents(firebaseUid);
+      if (myEvents && Array.isArray(myEvents.events)) {
+        for (const event of myEvents.events) {
+          await deleteEvent(event.id, firebaseUid);
+        }
+      }
+
+      // Leave events the user joined
+      const joinedEvents = await getMyJoinedEvents(firebaseUid, 'all');
+      if (joinedEvents && Array.isArray(joinedEvents.events)) {
+        for (const event of joinedEvents.events) {
+          await leaveEvent(event.id, firebaseUid);
+        }
+      }
+
+      // Clean up userChallenges documents for this user
+      await db.collection('userChallenges').deleteMany({ userId: firebaseUid });
+
+      // Delete user document
+      const deleted = await userDb.delete(firebaseUid);
+
+      if (!deleted) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            message: 'User not found',
+            code: 'USER_NOT_FOUND'
+          }
+        });
+      }
+
+      // Delete Firebase Auth user
+      try {
+        await deleteUser(firebaseUid);
+      } catch (err) {
+        console.error('Error deleting Firebase Auth user:', err.message || err);
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Account and related data deleted successfully'
+      });
+
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 // Helper functions

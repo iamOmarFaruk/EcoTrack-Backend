@@ -17,6 +17,9 @@ router.get('/profile', authenticateFirebaseToken, userController.getCurrentUserP
 // PATCH /api/users/profile - Update current user profile (requires authentication)
 router.patch('/profile', authenticateFirebaseToken, userController.updateUserProfile);
 
+// DELETE /api/users/profile - Delete current user account and contributions (requires authentication)
+router.delete('/profile', authenticateFirebaseToken, userController.deleteMyAccount);
+
 // GET /api/users/:id - Get public user profile
 router.get('/:id', userController.getPublicUserProfile);
 
