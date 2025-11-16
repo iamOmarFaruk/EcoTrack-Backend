@@ -151,6 +151,26 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('combined'));
 }
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Welcome to EcoTrack API! 🌱',
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    endpoints: {
+      health: `${req.protocol}://${req.get('host')}/health`,
+      documentation: `${req.protocol}://${req.get('host')}/api`,
+      authentication: `${req.protocol}://${req.get('host')}/api/auth`,
+      users: `${req.protocol}://${req.get('host')}/api/users`,
+      events: `${req.protocol}://${req.get('host')}/api/events`,
+      tips: `${req.protocol}://${req.get('host')}/api/tips`,
+      challenges: `${req.protocol}://${req.get('host')}/api/challenges`
+    }
+  });
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
