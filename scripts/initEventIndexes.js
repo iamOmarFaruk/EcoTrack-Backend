@@ -10,9 +10,14 @@ async function initializeEventIndexes() {
     const eventsCollection = db.collection('events');
     
     console.log('🔄 Creating indexes for events collection...');
-    
-    await eventsCollection.createIndex({ id: 1 }, { unique: true });
-    console.log('✅ Created unique index on id');
+
+    // Drop legacy unique index on `id` if it exists
+    try {
+      await eventsCollection.dropIndex('id_1');
+      console.log("✅ Dropped old unique index on id");
+    } catch (e) {
+      console.log("ℹ️ No existing unique index on id to drop");
+    }
     
     await eventsCollection.createIndex({ createdBy: 1 });
     console.log('✅ Created index on createdBy');
@@ -38,11 +43,9 @@ async function initializeEventIndexes() {
     
     console.log('✅ All event indexes created successfully!');
     
-    await database.disconnect();
     process.exit(0);
   } catch (error) {
     console.error('❌ Error creating indexes:', error.message);
-    await database.disconnect();
     process.exit(1);
   }
 }
