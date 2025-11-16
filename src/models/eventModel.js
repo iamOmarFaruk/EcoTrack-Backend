@@ -7,7 +7,7 @@ const participantSchema = new mongoose.Schema({
 }, { _id: false });
 
 const eventSchema = new mongoose.Schema({
-  id: { type: String, required: true, unique: true },
+  slug: { type: String, required: true, unique: true },
   title: { type: String, required: true },
   description: { type: String, required: true },
   detailedDescription: { type: String, default: '' },
@@ -28,19 +28,28 @@ const eventSchema = new mongoose.Schema({
 });
 
 eventSchema.index({ date: 1, status: 1 });
+eventSchema.index({ slug: 1 });
 eventSchema.index({ title: 'text', description: 'text', detailedDescription: 'text' });
 
 const Event = mongoose.models.Event || mongoose.model('Event', eventSchema);
 
-const generateEventId = (title) => {
-  const slug = title
+const generateEventSlug = async (title) => {
+  const baseSlug = title
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, '')
     .replace(/\s+/g, '-')
     .substring(0, 50);
   
-  const timestamp = Date.now();
-  return `${slug}-${timestamp}`;
+  let slug = baseSlug;
+  let counter = 1;
+  
+  // Check if slug exists and append counter if needed
+  while (await Event.findOne({ slug }).lean()) {
+    slug = `${baseSlug}-${counter}`;
+    counter++;
+  }
+  
+  return slug;
 };
 
 const getDefaultImage = (title, location) => {
@@ -63,11 +72,11 @@ const getDefaultImage = (title, location) => {
 };
 
 const createEvent = async (eventData, userId) => {
-  const eventId = generateEventId(eventData.title);
+  const eventSlug = await generateEventSlug(eventData.title);
   const now = new Date();
   
   const event = new Event({
-    id: eventId,
+    slug: eventSlug,
     title: eventData.title.trim(),
     description: eventData.description.trim(),
     detailedDescription: eventData.detailedDescription.trim(),
@@ -133,7 +142,12 @@ const getAllEvents = async (filters = {}) => {
 };
 
 const getEventById = async (eventId, userId = null) => {
-  const event = await Event.findOne({ id: eventId }).lean();
+  // Check if eventId is a valid MongoDB ObjectId or a slug
+  const query = mongoose.Types.ObjectId.isValid(eventId) && eventId.length === 24
+    ? { _id: eventId }
+    : { slug: eventId };
+  
+  const event = await Event.findOne(query).lean();
   
   if (!event) {
     return null;
@@ -158,7 +172,7 @@ const getEventById = async (eventId, userId = null) => {
 };
 
 const updateEvent = async (eventId, updateData, userId) => {
-  const event = await Event.findOne({ id: eventId }).lean();
+  const event = await Event.findById(eventId).lean();
   
   if (!event) {
     return { error: 'Event not found', code: 404 };
@@ -204,8 +218,8 @@ const updateEvent = async (eventId, updateData, userId) => {
     }
   });
   
-  const updatedEvent = await Event.findOneAndUpdate(
-    { id: eventId },
+  const updatedEvent = await Event.findByIdAndUpdate(
+    eventId,
     { $set: updates },
     { new: true }
   ).lean();
@@ -214,7 +228,7 @@ const updateEvent = async (eventId, updateData, userId) => {
 };
 
 const deleteEvent = async (eventId, userId) => {
-  const event = await Event.findOne({ id: eventId }).lean();
+  const event = await Event.findById(eventId).lean();
   
   if (!event) {
     return { error: 'Event not found', code: 404 };
@@ -225,8 +239,8 @@ const deleteEvent = async (eventId, userId) => {
   }
   
   if (event.registeredParticipants > 0) {
-    await Event.updateOne(
-      { id: eventId },
+    await Event.findByIdAndUpdate(
+      eventId,
       {
         $set: {
           status: 'cancelled',
@@ -237,12 +251,12 @@ const deleteEvent = async (eventId, userId) => {
     return { cancelled: true, message: 'Event marked as cancelled and participants notified' };
   }
   
-  await Event.deleteOne({ id: eventId });
+  await Event.findByIdAndDelete(eventId);
   return { deleted: true, message: 'Event deleted successfully' };
 };
 
 const joinEvent = async (eventId, userId) => {
-  const event = await Event.findOne({ id: eventId }).lean();
+  const event = await Event.findById(eventId).lean();
   
   if (!event) {
     return { error: 'Event not found', code: 404 };
@@ -268,31 +282,64 @@ const joinEvent = async (eventId, userId) => {
     return { error: 'You have already joined this event', code: 400 };
   }
   
-  const result = await Event.updateOne(
-    {
-      id: eventId,
-      registeredParticipants: { $lt: event.capacity },
-      status: 'active',
-      'participants.userId': { $ne: userId },
-    },
-    {
-      $inc: { registeredParticipants: 1 },
-      $push: {
-        participants: {
-          userId: userId,
-          joinedAt: new Date(),
-          status: 'joined',
-        },
-      },
-      $set: { updatedAt: new Date() },
-    }
+  // Check if user previously left and allow them to rejoin
+  const previouslyLeft = event.participants.find(
+    p => p.userId === userId && p.status === 'left'
   );
+  
+  let result;
+  
+  if (previouslyLeft) {
+    // User is rejoining - update their status
+    result = await Event.updateOne(
+      {
+        _id: eventId,
+        registeredParticipants: { $lt: event.capacity },
+        status: 'active',
+        participants: {
+          $elemMatch: { userId: userId, status: 'left' }
+        }
+      },
+      {
+        $inc: { registeredParticipants: 1 },
+        $set: {
+          'participants.$[elem].status': 'joined',
+          'participants.$[elem].joinedAt': new Date(),
+          updatedAt: new Date()
+        }
+      },
+      {
+        arrayFilters: [{ 'elem.userId': userId, 'elem.status': 'left' }]
+      }
+    );
+  } else {
+    // New participant joining
+    result = await Event.updateOne(
+      {
+        _id: eventId,
+        registeredParticipants: { $lt: event.capacity },
+        status: 'active',
+        'participants.userId': { $ne: userId },
+      },
+      {
+        $inc: { registeredParticipants: 1 },
+        $push: {
+          participants: {
+            userId: userId,
+            joinedAt: new Date(),
+            status: 'joined',
+          },
+        },
+        $set: { updatedAt: new Date() },
+      }
+    );
+  }
   
   if (result.modifiedCount === 0) {
     return { error: 'Event is full. No spots remaining.', code: 400 };
   }
   
-  const updatedEvent = await Event.findOne({ id: eventId }).lean();
+  const updatedEvent = await Event.findById(eventId).lean();
   
   return { 
     event: updatedEvent,
@@ -302,7 +349,7 @@ const joinEvent = async (eventId, userId) => {
 };
 
 const leaveEvent = async (eventId, userId) => {
-  const event = await Event.findOne({ id: eventId }).lean();
+  const event = await Event.findById(eventId).lean();
   
   if (!event) {
     return { error: 'Event not found', code: 404 };
@@ -318,7 +365,7 @@ const leaveEvent = async (eventId, userId) => {
   
   const result = await Event.updateOne(
     {
-      id: eventId,
+      _id: eventId,
       participants: {
         $elemMatch: { userId: userId, status: 'joined' },
       },
@@ -339,7 +386,7 @@ const leaveEvent = async (eventId, userId) => {
     return { error: 'Failed to leave event', code: 400 };
   }
   
-  const updatedEvent = await Event.findOne({ id: eventId }).lean();
+  const updatedEvent = await Event.findById(eventId).lean();
   
   return {
     event: updatedEvent,
@@ -405,7 +452,7 @@ const getMyJoinedEvents = async (userId, statusFilter = 'upcoming') => {
 };
 
 const getEventParticipants = async (eventId, userId = null) => {
-  const event = await Event.findOne({ id: eventId }).lean();
+  const event = await Event.findById(eventId).lean();
   
   if (!event) {
     return { error: 'Event not found', code: 404 };
