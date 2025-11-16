@@ -19,11 +19,24 @@ class UserController {
 
       // If user doesn't exist in our database, create them
       if (!user) {
+        // Get displayName and photoURL from Firebase Auth
+        const { getUserByUid } = require('../config/firebase');
+        let firebaseDisplayName = null;
+        let firebasePhotoURL = null;
+        
+        try {
+          const firebaseUser = await getUserByUid(firebaseUid);
+          firebaseDisplayName = firebaseUser.displayName;
+          firebasePhotoURL = firebaseUser.photoURL;
+        } catch (error) {
+          console.warn('Could not fetch Firebase user details:', error.message);
+        }
+
         const newUserData = {
           firebaseUid,
           email: userEmail,
-          displayName: req.user.email.split('@')[0], // Default display name
-          photoURL: null,
+          displayName: firebaseDisplayName || req.user.email.split('@')[0],
+          photoURL: firebasePhotoURL || null,
           bio: '',
           location: '',
           preferences: {

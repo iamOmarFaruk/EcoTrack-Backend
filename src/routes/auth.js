@@ -300,11 +300,23 @@ router.get('/me', authenticateFirebaseToken, async (req, res, next) => {
 
     // If user doesn't exist in database, create basic profile
     if (!user) {
+      // Get displayName and photoURL from Firebase Auth
+      let firebaseDisplayName = null;
+      let firebasePhotoURL = null;
+      
+      try {
+        const firebaseUser = await getUserByUid(firebaseUid);
+        firebaseDisplayName = firebaseUser.displayName;
+        firebasePhotoURL = firebaseUser.photoURL;
+      } catch (error) {
+        console.warn('Could not fetch Firebase user details for auto-profile creation:', error.message);
+      }
+
       const newUserData = {
         firebaseUid,
         email: req.user.email,
-        displayName: req.user.displayName || req.user.email.split('@')[0],
-        photoURL: req.user.photoURL || null,
+        displayName: firebaseDisplayName || req.user.email.split('@')[0],
+        photoURL: firebasePhotoURL || null,
         bio: '',
         location: '',
         preferences: {
