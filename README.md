@@ -1,16 +1,16 @@
 <div align="center">
 
 # ⚡ EcoTrack Backend API
-### *Node.js + Express + MongoDB - Serverless RESTful API for Environmental Community Platform*
+### *Node.js + Express + MongoDB - Production-Grade Serverless Architecture*
 
 [![Live API](https://img.shields.io/badge/🚀_Live_API-eco--track--backend.vercel.app-0078D4?style=for-the-badge)](https://eco-track-backend-delta.vercel.app/api/)
 [![Frontend](https://img.shields.io/badge/🌐_Frontend-eco--track--peach.vercel.app-00C853?style=for-the-badge)](https://eco-track-peach.vercel.app)
 
 <br/>
 
-**A production-ready serverless API powering EcoTrack - connecting environmentally-conscious individuals through challenges, events, and sustainability initiatives.**
+**A high-performance serverless API demonstrating advanced backend development practices, security implementation, and scalable architecture design.**
 
-[🎯 Features](#-features) • [🛠️ Tech Stack](#️-tech-stack) • [📚 API Documentation](#-api-documentation) • [🏗️ Architecture](#️-architecture)
+[🎯 Technical Highlights](#-technical-highlights) • [🛠️ Tech Stack](#️-tech-stack) • [🏗️ Architecture](#️-architecture) • [🔒 Security](#-security-implementation)
 
 </div>
 
@@ -18,57 +18,70 @@
 
 ## 📋 Overview
 
-EcoTrack Backend is a scalable, secure RESTful API built with Node.js, Express, and MongoDB. Deployed as serverless functions on Vercel, it provides robust endpoints for user authentication, event management, challenge tracking, and eco-tips sharing with real-time data synchronization.
+A professionally architected RESTful API showcasing modern backend development with Node.js, Express, and MongoDB. Built with production-grade security, performance optimization, and serverless deployment on Vercel Edge Network.
 
-### 🎯 Key Highlights
+### 🎯 Technical Highlights
 
-- **🔐 Secure Authentication**: Firebase Admin SDK with token verification
-- **🌐 RESTful Design**: 30+ endpoints with proper HTTP methods and status codes
-- **⚡ Serverless Architecture**: Vercel Edge Functions for optimal performance and scalability
-- **🍃 MongoDB Atlas**: Cloud database with optimized indexes and atomic operations
-- **🛡️ Production-Ready**: Comprehensive security, validation, error handling
-- **📊 Real-time Updates**: Atomic operations preventing race conditions
-- **🚀 High Performance**: Rate limiting, caching strategies, query optimization
+- **🔐 Advanced Authentication**: Firebase Admin SDK with custom JWT verification and role-based access control
+- **⚡ Serverless Architecture**: Auto-scaling Vercel Edge Functions with cold-start optimization
+- **🍃 Database Optimization**: MongoDB with compound indexes, text search, and atomic operations
+- **🛡️ Enterprise Security**: Multi-layer security with Helmet, XSS protection, rate limiting, and input sanitization
+- **📊 Race-Condition Prevention**: Atomic MongoDB operations for concurrent user actions
+- **🚀 Performance Engineering**: Query optimization, connection pooling, and efficient error handling
+- **🔧 Clean Architecture**: Modular design with separation of concerns (MVC pattern)
 
 ---
 
 ## ✨ Features
 
-### 🔐 Authentication & Authorization
+### 🎨 Core Features
 
 <table>
 <tr>
 <td width="50%">
 
-#### **Firebase Authentication**
-- Token-based authentication
-- Google OAuth & Email/Password
+#### **🔐 Authentication System**
+- Firebase Admin SDK integration
+- JWT token verification middleware
 - Role-based access control (RBAC)
-- Custom claims for admin roles
-- Secure token verification on protected routes
+- Custom claims for authorization
+- Multi-level permission system
 
 </td>
 <td width="50%">
 
-#### **Authorization Levels**
-- **Public**: Browse challenges, events, tips
-- **Authenticated**: Join events, create content
-- **Creator**: Manage own events/challenges
-- **Admin**: Full platform management
+#### **📊 Data Management**
+- Real-time participant tracking
+- Atomic counter operations
+- Capacity management system
+- Advanced search with text indexes
+- Trending content algorithm
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+#### **⚡ Performance Features**
+- Query optimization techniques
+- Database connection pooling
+- Efficient pagination system
+- Compound index strategies
+- Lean queries for read operations
+
+</td>
+<td width="50%">
+
+#### **🛡️ Security Measures**
+- Input sanitization & validation
+- Rate limiting per IP
+- XSS & CSRF protection
+- Helmet security headers
+- CORS with whitelist origins
 
 </td>
 </tr>
 </table>
-
-### 🎨 Core API Modules
-
-| Module | Endpoints | Features |
-|--------|-----------|----------|
-| **🏆 Challenges** | 10 endpoints | CRUD operations, join/leave, participant tracking, atomic counters |
-| **📅 Events** | 10 endpoints | Capacity management, registration system, location-based filtering |
-| **💡 Tips** | 8 endpoints | Content sharing, upvoting system, trending algorithm, pagination |
-| **👥 Users** | 5 endpoints | Profile management, activity tracking, authentication |
-| **🔐 Auth** | 7 endpoints | Token verification, user management, custom claims |
 
 ---
 
@@ -103,6 +116,38 @@ Node.js 16+ + Express 4.18 + MongoDB 7.0
 | **XSS** | 1.0.15 | Cross-site scripting protection |
 | **CORS** | 2.8.5 | Cross-origin resource sharing |
 | **Morgan** | 1.10.0 | HTTP request logger |
+
+---
+
+## 💡 Advanced Implementation Techniques
+
+### Race Condition Prevention
+Implemented atomic MongoDB operations with optimistic locking to handle concurrent user actions:
+- **Atomic Counters**: `$inc` operations for participant counting
+- **Conditional Updates**: Query conditions prevent over-capacity registrations
+- **Array Filters**: Targeted updates within nested participant arrays
+- **Transaction Safety**: Ensuring data consistency without database locks
+
+### Slug Generation System
+Intelligent URL-friendly identifier generation:
+- Automatic conflict resolution with incremental suffixes
+- SEO-optimized patterns with lowercase and hyphens
+- Uniqueness validation across existing records
+- Character sanitization for web-safe URLs
+
+### Participant Management
+Complex state machine for user engagement:
+- Support for rejoin functionality after leaving
+- Status tracking (active, left) with timestamps
+- Historical participation records
+- Atomic participant count synchronization
+
+### Text Search Implementation
+Full-text search across multiple fields with relevance scoring:
+- MongoDB text indexes on key content fields
+- Stemming and language-specific processing
+- Relevance-based result sorting
+- Search result pagination
 
 ---
 
@@ -182,470 +227,77 @@ EcoTrack-Backend/
 
 ---
 
-## 📚 API Documentation
+## 📚 API Overview
 
 ### 🔗 Base URL
+```
+Production: https://eco-track-backend-delta.vercel.app/api
+```
 
-```
-Production:  https://eco-track-backend-delta.vercel.app/api
-Development: http://localhost:5000/api
-```
+### 🎯 API Structure
+
+The API provides **30+ RESTful endpoints** organized into 5 main resource groups:
+
+| Resource | Endpoints | Key Features |
+|----------|-----------|--------------|
+| **🏆 Challenges** | 10 endpoints | CRUD operations, participant management, community impact tracking |
+| **📅 Events** | 10 endpoints | Registration system, capacity control, location-based search |
+| **💡 Tips** | 8 endpoints | Content sharing, upvoting mechanism, trending algorithm |
+| **👥 Users** | 3 endpoints | Profile management, activity history |
+| **🔐 Auth** | 7 endpoints | Token verification, role management, user authentication |
 
 ### 🔐 Authentication
 
-All protected endpoints require Firebase ID token in the Authorization header:
-
+Protected endpoints require Firebase ID token:
 ```http
 Authorization: Bearer <firebase_id_token>
 ```
 
----
-
-## 🎯 API Endpoints
-
-### 🏆 Challenges API (10 Endpoints)
-
-#### **Public Endpoints**
-
-```http
-GET /api/challenges
-```
-Get all challenges with filtering, pagination, and search
-- **Query Parameters**: `page`, `limit`, `search`, `status`, `category`, `featured`, `sortBy`, `order`
-- **Response**: Paginated list of challenges
-
-```http
-GET /api/challenges/:id
-```
-Get challenge details by ID or slug
-- **Response**: Challenge object with computed fields
+**Access Levels:**
+- **Public**: Browse content without authentication
+- **Authenticated**: Create and join activities
+- **Creator**: Manage owned resources
+- **Admin**: Full platform access
 
 ---
 
-#### **Protected Endpoints** 🔒
+## 🗄️ Database Design
 
-```http
-POST /api/challenges
-```
-Create a new challenge
-- **Auth**: Required
-- **Body**: `{ title, shortDescription, detailedDescription, category, duration, startDate, endDate, image, communityImpact, featured }`
-- **Response**: Created challenge object
+### Schema Architecture
 
-```http
-PUT /api/challenges/:id
-```
-Update challenge (creator only)
-- **Auth**: Creator only
-- **Body**: Challenge fields to update
-- **Response**: Updated challenge object
+Designed with **MongoDB** for flexibility and performance:
 
-```http
-DELETE /api/challenges/:id
-```
-Delete or cancel challenge
-- **Auth**: Creator only
-- **Behavior**: Cancels if has participants, deletes otherwise
-- **Response**: Success message with status
+**Key Collections:**
+- **Challenges**: Community sustainability challenges with participant tracking
+- **Events**: Time-bound activities with capacity management
+- **Tips**: User-generated eco-friendly content with upvoting
+- **Users**: Profile and authentication data
 
-```http
-POST /api/challenges/:id/join
-```
-Join a challenge
-- **Auth**: Required
-- **Restrictions**: Cannot join own challenges
-- **Response**: Updated challenge with participant data
-
-```http
-POST /api/challenges/:id/leave
-```
-Leave a challenge
-- **Auth**: Required
-- **Response**: Updated challenge
-
-```http
-GET /api/challenges/my-challenges
-```
-Get challenges created by authenticated user
-- **Auth**: Required
-- **Response**: Array of created challenges
-
-```http
-GET /api/challenges/my-joined
-```
-Get challenges joined by user
-- **Auth**: Required
-- **Query**: `status`, `includeCompleted`
-- **Response**: Array of joined challenges
-
-```http
-GET /api/challenges/:id/participants
-```
-Get challenge participants
-- **Auth**: Optional (full list for creators only)
-- **Response**: Participant list or count
-
----
-
-### 📅 Events API (10 Endpoints)
-
-#### **Public Endpoints**
-
-```http
-GET /api/events
-```
-Get all events with pagination
-- **Query**: `page`, `limit`, `status`, `search`, `sortBy`, `order`
-- **Response**: Paginated events list
-
-```http
-GET /api/events/:id
-```
-Get event details by ID or slug
-- **Response**: Event object with availability info
-
----
-
-#### **Protected Endpoints** 🔒
-
-```http
-POST /api/events
-```
-Create a new event
-- **Auth**: Required
-- **Body**: `{ title, description, detailedDescription, date, location, organizer, capacity, duration, requirements, benefits, image }`
-- **Response**: Created event object
-
-```http
-PUT /api/events/:id
-```
-Update event (creator only)
-- **Auth**: Creator only
-- **Validation**: Cannot reduce capacity below current participants
-- **Response**: Updated event
-
-```http
-DELETE /api/events/:id
-```
-Delete or cancel event
-- **Auth**: Creator only
-- **Behavior**: Cancels if has participants, deletes otherwise
-- **Response**: Success message
-
-```http
-POST /api/events/:id/join
-```
-Register for event
-- **Auth**: Required
-- **Validation**: Capacity check, date validation
-- **Response**: Updated event with participant info
-
-```http
-POST /api/events/:id/leave
-```
-Unregister from event
-- **Auth**: Required
-- **Response**: Updated event with spots info
-
-```http
-GET /api/events/my-events
-```
-Get events created by user
-- **Auth**: Required
-- **Response**: Array of events with statistics
-
-```http
-GET /api/events/my-joined
-```
-Get registered events
-- **Auth**: Required
-- **Query**: `statusFilter` (upcoming/past)
-- **Response**: Array of joined events
-
-```http
-GET /api/events/:id/participants
-```
-Get event participants
-- **Auth**: Optional (full list for creators)
-- **Response**: Participant details or count
-
----
-
-### 💡 Tips API (8 Endpoints)
-
-#### **Public Endpoints**
-
-```http
-GET /api/tips
-```
-Get all tips with pagination
-- **Query**: `page`, `limit`, `sortBy`, `order`, `search`, `authorId`
-- **Response**: Paginated tips list
-
-```http
-GET /api/tips/trending
-```
-Get trending tips (most upvoted)
-- **Query**: `days` (default: 7), `limit` (default: 10)
-- **Response**: Array of trending tips
-
----
-
-#### **Protected Endpoints** 🔒
-
-```http
-POST /api/tips
-```
-Create a new tip
-- **Auth**: Required
-- **Body**: `{ title, content }`
-- **Validation**: Title 5-100 chars, content 20-500 chars
-- **Response**: Created tip
-
-```http
-GET /api/tips/my-tips
-```
-Get tips created by user
-- **Auth**: Required
-- **Query**: `page`, `limit`, `sortBy`, `order`
-- **Response**: Paginated user tips
-
-```http
-PUT /api/tips/:id
-```
-Update tip (full update)
-- **Auth**: Author only
-- **Body**: `{ title, content }`
-- **Response**: Updated tip
-
-```http
-PATCH /api/tips/:id
-```
-Partial update tip
-- **Auth**: Author only
-- **Body**: Partial fields
-- **Response**: Updated tip
-
-```http
-DELETE /api/tips/:id
-```
-Delete tip
-- **Auth**: Author only
-- **Response**: Success message
-
-```http
-POST /api/tips/:id/upvote
-```
-Upvote a tip
-- **Auth**: Required
-- **Restrictions**: Cannot upvote own tips, max 100 upvotes per user per tip
-- **Response**: Updated tip with new upvote count
-
----
-
-### 👥 Users API (3 Endpoints)
-
-```http
-GET /api/users/profile
-```
-Get current user profile
-- **Auth**: Required
-- **Response**: User profile object
-
-```http
-PATCH /api/users/profile
-```
-Update user profile
-- **Auth**: Required
-- **Body**: `{ name, bio, preferences }`
-- **Response**: Updated profile
-
-```http
-GET /api/users/:id
-```
-Get public user profile
-- **Auth**: Optional
-- **Response**: Public user information
-
----
-
-### 🔐 Auth API (7 Endpoints)
-
-```http
-POST /api/auth/verify-token
-```
-Verify Firebase ID token
-- **Body**: `{ idToken }`
-- **Response**: Decoded token with user info
-
-```http
-GET /api/auth/user
-```
-Get authenticated user info
-- **Auth**: Required
-- **Response**: Current user details
-
-```http
-GET /api/auth/profile
-```
-Get user profile from database
-- **Auth**: Required
-- **Response**: User profile or 404
-
-```http
-POST /api/auth/set-claims
-```
-Set custom claims (admin)
-- **Auth**: Admin role required
-- **Body**: `{ uid, customClaims }`
-- **Response**: Success message
-
-```http
-GET /api/auth/users
-```
-List all users (admin)
-- **Auth**: Admin role required
-- **Query**: `limit` (default: 1000)
-- **Response**: Array of users
-
-```http
-GET /api/auth/protected
-```
-Test protected route
-- **Auth**: Required
-- **Response**: Success message with user info
-
-```http
-GET /api/auth/admin
-```
-Test admin-only route
-- **Auth**: Admin role required
-- **Response**: Admin confirmation
-
----
-
-### 🏥 Utility Endpoints
-
-```http
-GET /health
-```
-Health check endpoint
-- **Response**: API status, database connection, environment info
-
-```http
-GET /api
-```
-API documentation
-- **Response**: Complete API reference with all endpoints
-
----
-
-## 🗄️ Database Schema
-
-### Challenges Collection
+### Advanced Indexing Strategy
 
 ```javascript
-{
-  _id: ObjectId,
-  slug: "plastic-free-week",              // Unique URL-friendly identifier
-  category: "Waste Reduction",            // Predefined categories
-  title: "Plastic-Free Week Challenge",
-  shortDescription: "...",
-  detailedDescription: "...",
-  image: "https://...",
-  participants: [
-    {
-      userId: "firebase_uid",
-      joinedAt: ISODate,
-      status: "active" | "left"
-    }
-  ],
-  registeredParticipants: 1240,          // Atomic counter
-  duration: "7 days",
-  communityImpact: {
-    co2SavedKg: 500,
-    plasticReducedKg: 200,
-    waterSavedL: 1000,
-    energySavedKwh: 300
-  },
-  startDate: ISODate,
-  endDate: ISODate,
-  featured: true,
-  status: "active" | "completed" | "cancelled",
-  createdBy: "firebase_uid",
-  createdAt: ISODate,
-  updatedAt: ISODate
-}
+// Compound Indexes for Query Optimization
+- category + status (filtered queries)
+- date + status (temporal queries)
+- authorId + createdAt (user content)
 
-// Indexes
-challenges.slug (unique)
-challenges.category + isActive
-challenges.title + shortDescription + detailedDescription (text search)
+// Text Search Indexes
+- Multi-field text search on title, description, content
+- Language-specific stemming and stop words
+- Relevance scoring for search results
+
+// Unique Indexes
+- Slug fields for SEO-friendly URLs
+- Email/userId for user identification
 ```
 
-### Events Collection
+### Data Integrity Features
 
-```javascript
-{
-  _id: ObjectId,
-  slug: "city-tree-planting-2025",
-  title: "City Tree Planting Day",
-  description: "...",
-  detailedDescription: "...",
-  date: ISODate,
-  location: "Portland Community Park",
-  organizer: "Green Earth Initiative",
-  capacity: 100,
-  registeredParticipants: 32,           // Atomic counter
-  participants: [
-    {
-      userId: "firebase_uid",
-      joinedAt: ISODate,
-      status: "joined" | "left"
-    }
-  ],
-  duration: "4 hours",
-  requirements: "...",
-  benefits: "...",
-  image: "https://...",
-  status: "active" | "completed" | "cancelled",
-  createdBy: "firebase_uid",
-  createdAt: ISODate,
-  updatedAt: ISODate
-}
-
-// Indexes
-events.slug (unique)
-events.date + status
-events.title + description + detailedDescription (text search)
-```
-
-### Tips Collection
-
-```javascript
-{
-  _id: ObjectId,
-  title: "Save Water with Rain Barrels",
-  content: "...",
-  authorId: "firebase_uid",
-  upvoteCount: 47,
-  upvotedBy: [
-    {
-      userId: "firebase_uid",
-      upvotedAt: ISODate,
-      count: 1                           // Track multiple upvotes (max 100)
-    }
-  ],
-  createdAt: ISODate,
-  updatedAt: ISODate
-}
-
-// Indexes
-tips.authorId
-tips.upvoteCount (for trending)
-tips.createdAt (for recent)
-tips.title + content (text search)
-```
+- **Atomic Counters**: Using `$inc` for participant counts
+- **Embedded Documents**: Participant arrays with status tracking
+- **Timestamps**: Automatic createdAt/updatedAt management
+- **Status Enums**: Predefined states (active, completed, cancelled)
+- **Nested Objects**: Structured data for community impact metrics
 
 ---
 
@@ -803,190 +455,33 @@ vercel --prod
 
 ## 🎯 Advanced Features
 
-### Atomic Operations & Race Condition Prevention
 
-```javascript
-// Example: Join Event with Capacity Check
-const result = await Event.updateOne(
-  {
-    _id: eventId,
-    registeredParticipants: { $lt: event.capacity },  // Atomic capacity check
-    status: 'active',
-    'participants.userId': { $ne: userId }            // Prevent duplicates
-  },
-  {
-    $inc: { registeredParticipants: 1 },              // Atomic increment
-    $push: { participants: { userId, joinedAt: new Date() } },
-    $set: { updatedAt: new Date() }
-  }
-);
-
-// Result: Either succeeds completely or fails - no race conditions
-```
-
-### Slug Generation & Uniqueness
-
-```javascript
-// Auto-generate unique slugs with conflict resolution
-async function generateUniqueSlug(title, excludeId = null) {
-  const baseSlug = title.toLowerCase()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/[\s_-]+/g, '-');
-  
-  let slug = baseSlug;
-  let counter = 1;
-  
-  while (await exists(slug, excludeId)) {
-    slug = `${baseSlug}-${counter}`;
-    counter++;
-  }
-  
-  return slug;
-}
-```
-
-### Participant Tracking System
-
-```javascript
-// Allow users to rejoin after leaving
-- Track participant history with status flags
-- Support "active" and "left" states
-- Enable unlimited rejoining
-- Maintain accurate participant counts with atomic operations
-```
-
-### Text Search Implementation
-
-```javascript
-// Full-text search across multiple fields
-{
-  $text: { $search: "sustainability climate" }
-}
-
-// Indexes support:
-- Challenge titles and descriptions
-- Event details and locations
-- Tip content
-```
 
 ---
 
-## 📊 API Response Format
+## 📊 Response Standards
 
-### Success Response
+All API responses follow a consistent structure:
 
+**Success Response:**
 ```json
 {
   "success": true,
-  "data": {
-    "challenges": [...],
-    "pagination": {
-      "page": 1,
-      "limit": 10,
-      "total": 45,
-      "pages": 5
-    }
-  },
-  "message": "Challenges retrieved successfully"
+  "data": { ... },
+  "message": "Operation completed successfully"
 }
 ```
 
-### Error Response
-
+**Error Response:**
 ```json
 {
   "success": false,
   "error": {
-    "message": "Challenge not found",
-    "code": "CHALLENGE_NOT_FOUND",
-    "status": 404,
-    "details": {
-      "id": "invalid-slug"
-    }
+    "message": "Descriptive error message",
+    "code": "ERROR_CODE",
+    "status": 400
   }
 }
-```
-
-### Validation Error
-
-```json
-{
-  "success": false,
-  "error": {
-    "message": "Validation failed",
-    "code": "VALIDATION_ERROR",
-    "status": 400,
-    "errors": [
-      {
-        "field": "title",
-        "message": "Title must be at least 5 characters"
-      },
-      {
-        "field": "capacity",
-        "message": "Capacity must be a positive number"
-      }
-    ]
-  }
-}
-```
-
----
-
-## 🧪 Testing Endpoints
-
-### Test Authentication
-
-```bash
-# Health Check
-curl https://eco-track-backend-delta.vercel.app/health
-
-# Get API Documentation
-curl https://eco-track-backend-delta.vercel.app/api
-
-# Test Protected Route (requires token)
-curl -H "Authorization: Bearer YOUR_FIREBASE_TOKEN" \
-  https://eco-track-backend-delta.vercel.app/api/auth/protected
-```
-
-### Test Challenges
-
-```bash
-# Get All Challenges
-curl https://eco-track-backend-delta.vercel.app/api/challenges
-
-# Search Challenges
-curl "https://eco-track-backend-delta.vercel.app/api/challenges?search=plastic&category=Waste+Reduction"
-
-# Get Challenge by Slug
-curl https://eco-track-backend-delta.vercel.app/api/challenges/plastic-free-week
-
-# Create Challenge (requires auth)
-curl -X POST https://eco-track-backend-delta.vercel.app/api/challenges \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "30-Day Recycling Challenge",
-    "category": "Waste Reduction",
-    "shortDescription": "Commit to recycling every day for 30 days",
-    "duration": "30 days",
-    "startDate": "2025-12-01",
-    "endDate": "2025-12-31"
-  }'
-```
-
-### Test Events
-
-```bash
-# Get Upcoming Events
-curl "https://eco-track-backend-delta.vercel.app/api/events?status=active&sortBy=date&order=asc"
-
-# Join Event (requires auth)
-curl -X POST https://eco-track-backend-delta.vercel.app/api/events/EVENT_ID/join \
-  -H "Authorization: Bearer YOUR_TOKEN"
-
-# Get My Events
-curl -H "Authorization: Bearer YOUR_TOKEN" \
-  https://eco-track-backend-delta.vercel.app/api/events/my-joined
 ```
 
 ---
@@ -1197,101 +692,18 @@ Node.js • Express • MongoDB • Firebase • Cloud Deployment • Performanc
 
 ---
 
-## 📜 API Usage Examples
 
-### JavaScript (Fetch)
-
-```javascript
-// Get challenges
-const response = await fetch('https://eco-track-backend-delta.vercel.app/api/challenges');
-const data = await response.json();
-
-// Create challenge (authenticated)
-const token = await firebase.auth().currentUser.getIdToken();
-const response = await fetch('https://eco-track-backend-delta.vercel.app/api/challenges', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
-  },
-  body: JSON.stringify({
-    title: 'New Challenge',
-    category: 'Energy Conservation',
-    // ... other fields
-  })
-});
-```
-
-### Axios
-
-```javascript
-import axios from 'axios';
-
-const api = axios.create({
-  baseURL: 'https://eco-track-backend-delta.vercel.app/api'
-});
-
-// Add auth token to all requests
-api.interceptors.request.use(async (config) => {
-  const token = await firebase.auth().currentUser.getIdToken();
-  config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
-
-// Join event
-await api.post(`/events/${eventId}/join`);
-
-// Get my challenges
-const { data } = await api.get('/challenges/my-challenges');
-```
-
-### cURL
-
-```bash
-# Get all tips
-curl https://eco-track-backend-delta.vercel.app/api/tips
-
-# Create tip with authentication
-curl -X POST https://eco-track-backend-delta.vercel.app/api/tips \
-  -H "Authorization: Bearer YOUR_FIREBASE_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"title":"Save Water","content":"Install low-flow showerheads..."}'
-
-# Upvote tip
-curl -X POST https://eco-track-backend-delta.vercel.app/api/tips/TIP_ID/upvote \
-  -H "Authorization: Bearer YOUR_FIREBASE_TOKEN"
-```
 
 ---
 
-## 📝 Changelog
+## 🤝 Contact & Collaboration
 
-### Version 1.0.0 (Current)
-- ✅ Initial production release
-- ✅ 30+ RESTful API endpoints
-- ✅ Firebase authentication integration
-- ✅ MongoDB Atlas database with indexes
-- ✅ Serverless deployment on Vercel
-- ✅ Comprehensive security middleware
-- ✅ Rate limiting and CORS configuration
-- ✅ Error handling and validation
-- ✅ Atomic operations for data consistency
+This portfolio project demonstrates production-grade backend development capabilities.
 
----
-
-## 🤝 Contributing
-
-This is a portfolio project showcasing backend development skills. For inquiries or collaboration:
-
+**For inquiries or collaboration:**
 - 📧 Email: [contact@omarfaruk.dev](mailto:contact@omarfaruk.dev)
 - 💼 LinkedIn: [omar-expert-webdeveloper](https://www.linkedin.com/in/omar-expert-webdeveloper/)
 - 🌐 Portfolio: [omarfaruk.dev](https://omarfaruk.dev/)
-
----
-
-## 📄 License
-
-MIT License - This project is open source and available for educational purposes.
 
 ---
 
