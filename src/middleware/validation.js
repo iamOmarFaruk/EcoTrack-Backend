@@ -10,10 +10,10 @@ const schemas = {
   createChallenge: Joi.object({
     title: Joi.string().min(3).max(100).required(),
     category: Joi.string().valid(
-      'Energy Conservation', 
-      'Water Conservation', 
-      'Sustainable Transport', 
-      'Green Living', 
+      'Energy Conservation',
+      'Water Conservation',
+      'Sustainable Transport',
+      'Green Living',
       'Waste Reduction'
     ).required(),
     description: Joi.string().min(10).max(500).required(),
@@ -30,10 +30,10 @@ const schemas = {
   updateChallenge: Joi.object({
     title: Joi.string().min(3).max(100),
     category: Joi.string().valid(
-      'Energy Conservation', 
-      'Water Conservation', 
-      'Sustainable Transport', 
-      'Green Living', 
+      'Energy Conservation',
+      'Water Conservation',
+      'Sustainable Transport',
+      'Green Living',
       'Waste Reduction'
     ),
     description: Joi.string().min(10).max(500),
@@ -88,7 +88,8 @@ const schemas = {
     duration: Joi.string().min(3).max(50).required().trim(),
     requirements: Joi.string().min(10).max(500).required().trim(),
     benefits: Joi.string().min(10).max(500).required().trim(),
-    image: Joi.string().uri().required()
+    image: Joi.string().uri().required(),
+    category: Joi.string().required().trim()
   }),
 
   updateEvent: Joi.object({
@@ -103,7 +104,8 @@ const schemas = {
     requirements: Joi.string().min(10).max(500).trim(),
     benefits: Joi.string().min(10).max(500).trim(),
     image: Joi.string().uri(),
-    status: Joi.string().valid('active', 'cancelled', 'completed')
+    status: Joi.string().valid('active', 'cancelled', 'completed'),
+    category: Joi.string().trim()
   }).min(1),
 
   // User profile validation
@@ -171,7 +173,7 @@ const schemas = {
 const validate = (schemaName) => {
   return (req, res, next) => {
     const schema = schemas[schemaName];
-    
+
     if (!schema) {
       return res.status(500).json({
         success: false,
@@ -254,10 +256,10 @@ const querySchemas = {
 
   challengeFilters: Joi.object({
     category: Joi.string().valid(
-      'Energy Conservation', 
-      'Water Conservation', 
-      'Sustainable Transport', 
-      'Green Living', 
+      'Energy Conservation',
+      'Water Conservation',
+      'Sustainable Transport',
+      'Green Living',
       'Waste Reduction'
     ),
     status: Joi.string().valid('active', 'completed', 'upcoming'),
@@ -268,10 +270,10 @@ const querySchemas = {
 
   tipFilters: Joi.object({
     category: Joi.string().valid(
-      'Energy Conservation', 
-      'Water Conservation', 
-      'Sustainable Transport', 
-      'Green Living', 
+      'Energy Conservation',
+      'Water Conservation',
+      'Sustainable Transport',
+      'Green Living',
       'Waste Reduction',
       'Waste Management'
     ),
@@ -285,6 +287,9 @@ const querySchemas = {
     page: Joi.number().integer().min(1).default(1),
     limit: Joi.number().integer().min(1).max(50).default(10),
     status: Joi.string().valid('active', 'cancelled', 'completed'),
+    category: Joi.string().max(50),
+    availability: Joi.string().valid('all', 'available'),
+    dateRange: Joi.string().valid('all', 'today', 'this-week'),
     search: Joi.string().max(100),
     sortBy: Joi.string().valid('date', 'createdAt', 'capacity').default('date'),
     order: Joi.string().valid('asc', 'desc').default('asc')

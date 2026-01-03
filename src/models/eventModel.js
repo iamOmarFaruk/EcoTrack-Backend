@@ -20,6 +20,7 @@ const eventSchema = new mongoose.Schema({
   requirements: { type: String, default: '' },
   benefits: { type: String, default: '' },
   image: { type: String },
+  category: { type: String, required: true },
   createdBy: { type: String, required: true },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
@@ -28,8 +29,9 @@ const eventSchema = new mongoose.Schema({
 });
 
 eventSchema.index({ date: 1, status: 1 });
+eventSchema.index({ category: 1 });
 eventSchema.index({ slug: 1 });
-eventSchema.index({ title: 'text', description: 'text', detailedDescription: 'text' });
+eventSchema.index({ title: 'text', description: 'text', detailedDescription: 'text', location: 'text' });
 
 const Event = mongoose.models.Event || mongoose.model('Event', eventSchema);
 
@@ -39,22 +41,22 @@ const generateEventSlug = async (title) => {
     .replace(/[^a-z0-9\s-]/g, '')
     .replace(/\s+/g, '-')
     .substring(0, 50);
-  
+
   let slug = baseSlug;
   let counter = 1;
-  
+
   // Check if slug exists and append counter if needed
   while (await Event.findOne({ slug }).lean()) {
     slug = `${baseSlug}-${counter}`;
     counter++;
   }
-  
+
   return slug;
 };
 
 const getDefaultImage = (title, location) => {
   const text = (title + ' ' + location).toLowerCase();
-  
+
   if (text.includes('tree') || text.includes('plant') || text.includes('forest')) {
     return 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?q=80&w=1200&h=800&auto=format&fit=crop';
   }
@@ -67,14 +69,14 @@ const getDefaultImage = (title, location) => {
   if (text.includes('beach') || text.includes('ocean') || text.includes('cleanup')) {
     return 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?q=80&w=1200&h=800&auto=format&fit=crop';
   }
-  
+
   return 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?q=80&w=1200&h=800&auto=format&fit=crop';
 };
 
 const createEvent = async (eventData, userId) => {
   const eventSlug = await generateEventSlug(eventData.title);
   const now = new Date();
-  
+
   const event = new Event({
     slug: eventSlug,
     title: eventData.title.trim(),
@@ -89,13 +91,14 @@ const createEvent = async (eventData, userId) => {
     requirements: eventData.requirements.trim(),
     benefits: eventData.benefits.trim(),
     image: eventData.image,
+    category: eventData.category,
     createdBy: userId,
     createdAt: now,
     updatedAt: now,
     status: 'active',
     participants: []
   });
-  
+
   await event.save();
   return event.toObject();
 };
@@ -104,30 +107,51 @@ const getAllEvents = async (filters = {}) => {
   const page = parseInt(filters.page) || 1;
   const limit = Math.min(parseInt(filters.limit) || 10, 50);
   const skip = (page - 1) * limit;
-  
+
   const query = {};
-  
+
   if (filters.status) {
     query.status = filters.status;
   }
-  
+
+  if (filters.category && filters.category !== 'All') {
+    query.category = filters.category;
+  }
+
+  if (filters.availability === 'available') {
+    query.$expr = { $lt: ['$registeredParticipants', '$capacity'] };
+  }
+
+  if (filters.dateRange === 'today') {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    query.date = { $gte: today, $lt: tomorrow };
+  } else if (filters.dateRange === 'this-week') {
+    const today = new Date();
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    query.date = { $gte: today, $lt: nextWeek };
+  }
+
   if (filters.search) {
     query.$text = { $search: filters.search };
   }
-  
+
   const sortField = filters.sortBy || 'date';
   const sortOrder = filters.order === 'desc' ? -1 : 1;
   const sort = { [sortField]: sortOrder };
-  
+
   const events = await Event.find(query)
     .select('-participants')
     .skip(skip)
     .limit(limit)
     .sort(sort)
     .lean();
-  
+
   const total = await Event.countDocuments(query);
-  
+
   return {
     events,
     pagination: {
@@ -146,13 +170,13 @@ const getEventById = async (eventId, userId = null) => {
   const query = mongoose.Types.ObjectId.isValid(eventId) && eventId.length === 24
     ? { _id: eventId }
     : { slug: eventId };
-  
+
   const event = await Event.findOne(query).lean();
-  
+
   if (!event) {
     return null;
   }
-  
+
   const result = {
     event,
     isJoined: null,
@@ -160,52 +184,52 @@ const getEventById = async (eventId, userId = null) => {
     spotsRemaining: event.capacity - event.registeredParticipants,
     progressPercentage: Math.round((event.registeredParticipants / event.capacity) * 100)
   };
-  
+
   if (userId) {
     result.isJoined = event.participants.some(
       p => p.userId === userId && p.status === 'joined'
     );
     result.isCreator = event.createdBy === userId;
   }
-  
+
   return result;
 };
 
 const updateEvent = async (eventId, updateData, userId) => {
   const event = await Event.findById(eventId).lean();
-  
+
   if (!event) {
     return { error: 'Event not found', code: 404 };
   }
-  
+
   if (event.createdBy !== userId) {
     return { error: 'You are not authorized to update this event', code: 403 };
   }
-  
+
   if (updateData.capacity !== undefined) {
     const newCapacity = parseInt(updateData.capacity);
     if (newCapacity < event.registeredParticipants) {
-      return { 
-        error: `Cannot reduce capacity below current participant count (${event.registeredParticipants})`, 
-        code: 400 
+      return {
+        error: `Cannot reduce capacity below current participant count (${event.registeredParticipants})`,
+        code: 400
       };
     }
   }
-  
+
   if (updateData.date) {
     const newDate = new Date(updateData.date);
     if (newDate < new Date()) {
       return { error: 'Cannot change date to past', code: 400 };
     }
   }
-  
+
   const updates = { updatedAt: new Date() };
-  
+
   const allowedFields = [
     'title', 'description', 'detailedDescription', 'date', 'location',
-    'organizer', 'capacity', 'duration', 'requirements', 'benefits', 'image', 'status'
+    'organizer', 'capacity', 'duration', 'requirements', 'benefits', 'image', 'status', 'category'
   ];
-  
+
   allowedFields.forEach(field => {
     if (updateData[field] !== undefined) {
       if (typeof updateData[field] === 'string') {
@@ -217,7 +241,7 @@ const updateEvent = async (eventId, updateData, userId) => {
       }
     }
   });
-  
+
   const updatedEvent = await Event.findByIdAndUpdate(
     eventId,
     { $set: updates },
@@ -229,15 +253,15 @@ const updateEvent = async (eventId, updateData, userId) => {
 
 const deleteEvent = async (eventId, userId) => {
   const event = await Event.findById(eventId).lean();
-  
+
   if (!event) {
     return { error: 'Event not found', code: 404 };
   }
-  
+
   if (event.createdBy !== userId) {
     return { error: 'You are not authorized to delete this event', code: 403 };
   }
-  
+
   if (event.registeredParticipants > 0) {
     await Event.findByIdAndUpdate(
       eventId,
@@ -250,45 +274,45 @@ const deleteEvent = async (eventId, userId) => {
     );
     return { cancelled: true, message: 'Event marked as cancelled and participants notified' };
   }
-  
+
   await Event.findByIdAndDelete(eventId);
   return { deleted: true, message: 'Event deleted successfully' };
 };
 
 const joinEvent = async (eventId, userId) => {
   const event = await Event.findById(eventId).lean();
-  
+
   if (!event) {
     return { error: 'Event not found', code: 404 };
   }
-  
+
   if (event.createdBy === userId) {
     return { error: 'Event creators cannot join their own events', code: 400 };
   }
-  
+
   if (event.status !== 'active') {
     return { error: 'Cannot join inactive events', code: 400 };
   }
-  
+
   if (new Date(event.date) < new Date()) {
     return { error: 'Cannot join past events', code: 400 };
   }
-  
+
   const alreadyJoined = event.participants.some(
     p => p.userId === userId && p.status === 'joined'
   );
-  
+
   if (alreadyJoined) {
     return { error: 'You have already joined this event', code: 400 };
   }
-  
+
   // Check if user previously left and allow them to rejoin
   const previouslyLeft = event.participants.find(
     p => p.userId === userId && p.status === 'left'
   );
-  
+
   let result;
-  
+
   if (previouslyLeft) {
     // User is rejoining - update their status
     result = await Event.updateOne(
@@ -334,14 +358,14 @@ const joinEvent = async (eventId, userId) => {
       }
     );
   }
-  
+
   if (result.modifiedCount === 0) {
     return { error: 'Event is full. No spots remaining.', code: 400 };
   }
-  
+
   const updatedEvent = await Event.findById(eventId).lean();
-  
-  return { 
+
+  return {
     event: updatedEvent,
     participant: updatedEvent.participants.find(p => p.userId === userId),
     spotsRemaining: updatedEvent.capacity - updatedEvent.registeredParticipants
@@ -350,19 +374,19 @@ const joinEvent = async (eventId, userId) => {
 
 const leaveEvent = async (eventId, userId) => {
   const event = await Event.findById(eventId).lean();
-  
+
   if (!event) {
     return { error: 'Event not found', code: 404 };
   }
-  
+
   const participant = event.participants.find(
     p => p.userId === userId && p.status === 'joined'
   );
-  
+
   if (!participant) {
     return { error: 'You are not a participant of this event', code: 400 };
   }
-  
+
   const result = await Event.updateOne(
     {
       _id: eventId,
@@ -381,13 +405,13 @@ const leaveEvent = async (eventId, userId) => {
       arrayFilters: [{ 'elem.userId': userId, 'elem.status': 'joined' }],
     }
   );
-  
+
   if (result.modifiedCount === 0) {
     return { error: 'Failed to leave event', code: 400 };
   }
-  
+
   const updatedEvent = await Event.findById(eventId).lean();
-  
+
   return {
     event: updatedEvent,
     spotsRemaining: updatedEvent.capacity - updatedEvent.registeredParticipants
@@ -398,14 +422,14 @@ const getMyEvents = async (userId) => {
   const events = await Event.find({ createdBy: userId })
     .sort({ createdAt: -1 })
     .lean();
-  
+
   const stats = {
     active: events.filter(e => e.status === 'active').length,
     completed: events.filter(e => e.status === 'completed').length,
     cancelled: events.filter(e => e.status === 'cancelled').length,
     totalParticipants: events.reduce((sum, e) => sum + e.registeredParticipants, 0)
   };
-  
+
   return {
     events,
     total: events.length,
@@ -415,21 +439,21 @@ const getMyEvents = async (userId) => {
 
 const getMyJoinedEvents = async (userId, statusFilter = 'upcoming') => {
   const query = {
-    'participants': { 
+    'participants': {
       $elemMatch: { userId: userId, status: 'joined' }
     }
   };
-  
+
   if (statusFilter === 'upcoming') {
     query.date = { $gte: new Date() };
   } else if (statusFilter === 'past') {
     query.date = { $lt: new Date() };
   }
-  
+
   const events = await Event.find(query)
     .sort({ date: 1 })
     .lean();
-  
+
   // Get counts of all joined events (both upcoming and past) for stats
   const allJoined = await Event.find({
     participants: {
@@ -438,11 +462,11 @@ const getMyJoinedEvents = async (userId, statusFilter = 'upcoming') => {
   })
     .select('date')
     .lean();
-  
+
   const now = new Date();
   const upcoming = allJoined.filter(e => new Date(e.date) >= now).length;
   const past = allJoined.filter(e => new Date(e.date) < now).length;
-  
+
   return {
     events,
     total: events.length,
@@ -453,16 +477,16 @@ const getMyJoinedEvents = async (userId, statusFilter = 'upcoming') => {
 
 const getEventParticipants = async (eventId, userId = null) => {
   const event = await Event.findById(eventId).lean();
-  
+
   if (!event) {
     return { error: 'Event not found', code: 404 };
   }
-  
+
   const isCreator = userId && event.createdBy === userId;
-  
+
   if (isCreator) {
     const joinedParticipants = event.participants.filter(p => p.status === 'joined');
-    
+
     return {
       participants: joinedParticipants.map(p => ({
         userId: p.userId,
@@ -472,7 +496,7 @@ const getEventParticipants = async (eventId, userId = null) => {
       capacity: event.capacity
     };
   }
-  
+
   return {
     total: event.registeredParticipants,
     capacity: event.capacity,
