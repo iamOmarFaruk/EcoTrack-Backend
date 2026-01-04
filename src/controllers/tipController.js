@@ -17,9 +17,9 @@ exports.getAllTips = async (req, res, next) => {
       limit = 20,
       sortBy = 'createdAt',
       order = 'desc',
-      search,
       authorId,
-      category
+      category,
+      status = 'published'
     } = req.query;
 
     // Validate and sanitize pagination
@@ -40,7 +40,8 @@ exports.getAllTips = async (req, res, next) => {
       order: validOrder,
       search,
       authorId,
-      category
+      category,
+      status
     });
 
     res.status(200).json({
@@ -64,7 +65,7 @@ exports.getAllTips = async (req, res, next) => {
  */
 exports.createTip = async (req, res, next) => {
   try {
-    const { title, content, category } = req.body;
+    const { title, content, category, status } = req.body;
 
     // Validate input
     const validation = TipModel.validateTip({ title, content });
@@ -83,7 +84,8 @@ exports.createTip = async (req, res, next) => {
       category: category || 'General',
       authorId: req.user.uid,
       authorName: req.user.displayName || req.user.email?.split('@')[0] || 'Anonymous',
-      authorImage: req.user.photoURL || null
+      authorImage: req.user.photoURL || null,
+      status: status || 'published'
     };
 
     // Create tip
@@ -128,6 +130,7 @@ exports.updateTip = async (req, res, next) => {
     if (title !== undefined) updateData.title = title;
     if (content !== undefined) updateData.content = content;
     if (req.body.category !== undefined) updateData.category = req.body.category;
+    if (req.body.status !== undefined) updateData.status = req.body.status;
 
     // Check if there's anything to update
     if (Object.keys(updateData).length === 0) {
@@ -268,7 +271,8 @@ exports.getMyTips = async (req, res, next) => {
       page = 1,
       limit = 20,
       sortBy = 'createdAt',
-      order = 'desc'
+      order = 'desc',
+      status
     } = req.query;
 
     // Validate and sanitize pagination
@@ -287,7 +291,8 @@ exports.getMyTips = async (req, res, next) => {
       limit: validLimit,
       sortBy: validSortBy,
       order: validOrder,
-      authorId: req.user.uid // Filter by current user
+      authorId: req.user.uid, // Filter by current user
+      status // Optional status filter
     });
 
     res.status(200).json({

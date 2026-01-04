@@ -16,7 +16,8 @@ const tipSchema = new mongoose.Schema({
   upvoteCount: { type: Number, default: 0 },
   upvotes: { type: [upvoteSchema], default: [] },
   createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
+  updatedAt: { type: Date, default: Date.now },
+  status: { type: String, enum: ['published', 'draft'], default: 'published' }
 });
 
 tipSchema.index({ title: 'text', content: 'text' });
@@ -112,6 +113,7 @@ class TipModel {
       authorId: tipData.authorId,
       authorName: tipData.authorName,
       authorImage: tipData.authorImage || null,
+      status: tipData.status || 'published',
       upvoteCount: 0,
       upvotes: []
     });
@@ -130,9 +132,9 @@ class TipModel {
       limit = 20,
       sortBy = 'createdAt',
       order = 'desc',
-      search,
       authorId,
-      category
+      category,
+      status
     } = options;
 
     // Build query
@@ -148,6 +150,10 @@ class TipModel {
 
     if (category && category !== 'All') {
       query.category = category;
+    }
+
+    if (status) {
+      query.status = status;
     }
 
     // Build sort
@@ -225,6 +231,10 @@ class TipModel {
 
     if (updateData.category !== undefined) {
       update.$set.category = updateData.category;
+    }
+
+    if (updateData.status !== undefined) {
+      update.$set.status = updateData.status;
     }
 
     const updated = await collection.findOneAndUpdate(
