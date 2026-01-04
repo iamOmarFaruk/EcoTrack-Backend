@@ -154,7 +154,16 @@ class TipModel {
     }
 
     if (status) {
-      query.status = status;
+      if (status === 'published') {
+        // For published tips, also include those without a status field (old records)
+        query.$or = [
+          { status: 'published' },
+          { status: { $exists: false } },
+          { status: null }
+        ];
+      } else {
+        query.status = status;
+      }
     }
 
     // Build sort
@@ -356,6 +365,9 @@ class TipModel {
    */
   static computeFields(tip, userId = null) {
     if (!tip) return null;
+
+    // Ensure status exists (especially for old records)
+    tip.status = tip.status || 'published';
 
     // Normalize dates to avoid crashes if stored as strings or missing
     const createdAt = tip.createdAt instanceof Date
