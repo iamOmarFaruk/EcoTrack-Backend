@@ -9,6 +9,7 @@ const tipSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   title: { type: String, required: true },
   content: { type: String, required: true },
+  category: { type: String, default: 'General' },
   authorId: { type: String, required: true },
   authorName: { type: String, required: true },
   authorImage: { type: String, default: null },
@@ -19,6 +20,7 @@ const tipSchema = new mongoose.Schema({
 });
 
 tipSchema.index({ title: 'text', content: 'text' });
+tipSchema.index({ category: 1 });
 
 const Tip = mongoose.models.Tip || mongoose.model('Tip', tipSchema);
 
@@ -37,15 +39,15 @@ class TipModel {
    */
   static async createIndexes() {
     const collection = await this.getCollection();
-    
+
     await collection.createIndex({ id: 1 }, { unique: true });
     await collection.createIndex({ authorId: 1 });
     await collection.createIndex({ createdAt: -1 });
     await collection.createIndex({ upvoteCount: -1 });
     await collection.createIndex({ 'upvotes.userId': 1 });
-    await collection.createIndex({ 
-      title: 'text', 
-      content: 'text' 
+    await collection.createIndex({
+      title: 'text',
+      content: 'text'
     });
 
     console.log('Tips collection indexes created successfully');
@@ -101,11 +103,12 @@ class TipModel {
    */
   static async create(tipData) {
     const collection = await this.getCollection();
-    
+
     const tip = await collection.create({
       id: this.generateTipId(),
       title: tipData.title.trim(),
       content: tipData.content.trim(),
+      category: tipData.category || 'General',
       authorId: tipData.authorId,
       authorName: tipData.authorName,
       authorImage: tipData.authorImage || null,
@@ -121,25 +124,30 @@ class TipModel {
    */
   static async find(filters = {}, options = {}) {
     const collection = await this.getCollection();
-    
+
     const {
       page = 1,
       limit = 20,
       sortBy = 'createdAt',
       order = 'desc',
       search,
-      authorId
+      authorId,
+      category
     } = options;
 
     // Build query
     const query = {};
-    
+
     if (search) {
       query.$text = { $search: search };
     }
-    
+
     if (authorId) {
       query.authorId = authorId;
+    }
+
+    if (category && category !== 'All') {
+      query.category = category;
     }
 
     // Build sort
@@ -177,10 +185,10 @@ class TipModel {
    */
   static async findById(id, includeUpvotes = false) {
     const collection = await this.getCollection();
-    
+
     const projection = includeUpvotes ? {} : '-upvotes';
     const tip = await collection.findOne({ id }).select(projection).lean();
-    
+
     return tip ? this.computeFields(tip) : null;
   }
 
@@ -189,13 +197,13 @@ class TipModel {
    */
   static async update(id, updateData, userId) {
     const collection = await this.getCollection();
-    
+
     // Check if user is the author
     const tip = await collection.findOne({ id }).lean();
     if (!tip) {
       return { success: false, error: 'Tip not found' };
     }
-    
+
     if (tip.authorId !== userId) {
       return { success: false, error: 'You are not authorized to update this tip' };
     }
@@ -215,6 +223,10 @@ class TipModel {
       update.$set.content = updateData.content.trim();
     }
 
+    if (updateData.category !== undefined) {
+      update.$set.category = updateData.category;
+    }
+
     const updated = await collection.findOneAndUpdate(
       { id },
       update,
@@ -232,19 +244,19 @@ class TipModel {
    */
   static async delete(id, userId) {
     const collection = await this.getCollection();
-    
+
     // Check if user is the author
     const tip = await collection.findOne({ id }).lean();
     if (!tip) {
       return { success: false, error: 'Tip not found' };
     }
-    
+
     if (tip.authorId !== userId) {
       return { success: false, error: 'You are not authorized to delete this tip' };
     }
 
     await collection.deleteOne({ id });
-    
+
     return { success: true };
   }
 
@@ -253,10 +265,10 @@ class TipModel {
    */
   static async upvote(id, userId) {
     const collection = await this.getCollection();
-    
+
     // First, get the tip to check various conditions
     const tip = await collection.findOne({ id }).lean();
-    
+
     if (!tip) {
       return { success: false, error: 'Tip not found', code: 'NOT_FOUND' };
     }
@@ -266,8 +278,8 @@ class TipModel {
 
     // Check if user is trying to upvote their own tip
     if (tip.authorId === userId) {
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: 'You cannot upvote your own tip',
         code: 'SELF_UPVOTE'
       };
@@ -312,7 +324,7 @@ class TipModel {
    */
   static async getTrending(days = 7, limit = 10) {
     const collection = await this.getCollection();
-    
+
     const daysAgo = new Date();
     daysAgo.setDate(daysAgo.getDate() - days);
 

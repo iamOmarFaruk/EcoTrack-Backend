@@ -18,7 +18,8 @@ exports.getAllTips = async (req, res, next) => {
       sortBy = 'createdAt',
       order = 'desc',
       search,
-      authorId
+      authorId,
+      category
     } = req.query;
 
     // Validate and sanitize pagination
@@ -38,7 +39,8 @@ exports.getAllTips = async (req, res, next) => {
       sortBy: validSortBy,
       order: validOrder,
       search,
-      authorId
+      authorId,
+      category
     });
 
     res.status(200).json({
@@ -62,7 +64,7 @@ exports.getAllTips = async (req, res, next) => {
  */
 exports.createTip = async (req, res, next) => {
   try {
-    const { title, content } = req.body;
+    const { title, content, category } = req.body;
 
     // Validate input
     const validation = TipModel.validateTip({ title, content });
@@ -78,6 +80,7 @@ exports.createTip = async (req, res, next) => {
     const authorData = {
       title,
       content,
+      category: category || 'General',
       authorId: req.user.uid,
       authorName: req.user.displayName || req.user.email?.split('@')[0] || 'Anonymous',
       authorImage: req.user.photoURL || null
@@ -93,7 +96,7 @@ exports.createTip = async (req, res, next) => {
     });
   } catch (error) {
     console.error('Error creating tip:', error);
-    
+
     // Handle duplicate key error
     if (error.code === 11000) {
       return res.status(409).json({
@@ -124,6 +127,7 @@ exports.updateTip = async (req, res, next) => {
     const updateData = {};
     if (title !== undefined) updateData.title = title;
     if (content !== undefined) updateData.content = content;
+    if (req.body.category !== undefined) updateData.category = req.body.category;
 
     // Check if there's anything to update
     if (Object.keys(updateData).length === 0) {
