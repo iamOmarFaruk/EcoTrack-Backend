@@ -140,6 +140,7 @@ class TipModel {
 
     // Build query
     const query = {};
+    const filters_list = [];
 
     if (search) {
       query.$text = { $search: search };
@@ -150,20 +151,37 @@ class TipModel {
     }
 
     if (category && category !== 'All') {
-      query.category = category;
+      if (category === 'General') {
+        filters_list.push({
+          $or: [
+            { category: 'General' },
+            { category: { $exists: false } },
+            { category: null },
+            { category: '' }
+          ]
+        });
+      } else {
+        query.category = category;
+      }
     }
 
     if (status) {
       if (status === 'published') {
         // For published tips, also include those without a status field (old records)
-        query.$or = [
-          { status: 'published' },
-          { status: { $exists: false } },
-          { status: null }
-        ];
+        filters_list.push({
+          $or: [
+            { status: 'published' },
+            { status: { $exists: false } },
+            { status: null }
+          ]
+        });
       } else {
         query.status = status;
       }
+    }
+
+    if (filters_list.length > 0) {
+      query.$and = filters_list;
     }
 
     // Build sort
@@ -366,8 +384,9 @@ class TipModel {
   static computeFields(tip, userId = null) {
     if (!tip) return null;
 
-    // Ensure status exists (especially for old records)
+    // Ensure status and category exist (especially for old records)
     tip.status = tip.status || 'published';
+    tip.category = tip.category || 'General';
 
     // Normalize dates to avoid crashes if stored as strings or missing
     const createdAt = tip.createdAt instanceof Date
