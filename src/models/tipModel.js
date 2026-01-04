@@ -132,6 +132,7 @@ class TipModel {
       limit = 20,
       sortBy = 'createdAt',
       order = 'desc',
+      search,
       authorId,
       category,
       status

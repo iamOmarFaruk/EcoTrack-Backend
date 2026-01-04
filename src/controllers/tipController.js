@@ -19,7 +19,8 @@ exports.getAllTips = async (req, res, next) => {
       order = 'desc',
       authorId,
       category,
-      status = 'published'
+      status = 'published',
+      search
     } = req.query;
 
     // Validate and sanitize pagination
@@ -272,7 +273,8 @@ exports.getMyTips = async (req, res, next) => {
       limit = 20,
       sortBy = 'createdAt',
       order = 'desc',
-      status
+      status,
+      search
     } = req.query;
 
     // Validate and sanitize pagination
@@ -292,7 +294,8 @@ exports.getMyTips = async (req, res, next) => {
       sortBy: validSortBy,
       order: validOrder,
       authorId: req.user.uid, // Filter by current user
-      status // Optional status filter
+      status, // Optional status filter
+      search
     });
 
     res.status(200).json({
