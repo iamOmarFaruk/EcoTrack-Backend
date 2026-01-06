@@ -1,0 +1,422 @@
+const { getAdminConfig, verifyPassword, safeCompare } = require('../config/admin')
+const { signAdminToken } = require('../middleware/adminAuth')
+const { getSiteContent, updateSiteContent } = require('../models/siteContentModel')
+const { logActivity, listActivity } = require('../models/adminActivityModel')
+const { mongoose } = require('../config/mongoose')
+
+// Ensure models are registered
+require('../models/challengeModel')
+require('../models/eventModel')
+require('../models/tipModel')
+require('../models/userModel')
+
+const Challenge = mongoose.model('Challenge')
+const Event = mongoose.model('Event')
+const Tip = mongoose.model('Tip')
+const User = mongoose.model('User')
+
+class AdminController {
+  async login(req, res) {
+    const { email, password } = req.body || {}
+    const adminConfig = getAdminConfig()
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Email and password are required' }
+      })
+    }
+
+    const isEmailMatch = safeCompare(email.toLowerCase(), adminConfig.email.toLowerCase())
+    const isPasswordValid = verifyPassword(password)
+
+    if (!isEmailMatch || !isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        error: { message: 'Invalid admin credentials' }
+      })
+    }
+
+    const token = signAdminToken({
+      email: adminConfig.email,
+      name: adminConfig.name,
+      role: 'admin'
+    })
+
+    await logActivity({
+      action: 'login',
+      entity: 'admin',
+      entityId: adminConfig.email,
+      detail: 'Admin logged in',
+      performedBy: adminConfig.email
+    })
+
+    return res.json({
+      success: true,
+      data: {
+        token,
+        admin: {
+          email: adminConfig.email,
+          name: adminConfig.name
+        },
+        expiresInHours: adminConfig.tokenExpiryHours
+      }
+    })
+  }
+
+  async me(req, res) {
+    return res.json({
+      success: true,
+      data: {
+        admin: {
+          email: req.admin.email,
+          name: req.admin.name,
+          role: req.admin.role || 'admin'
+        }
+      }
+    })
+  }
+
+  async dashboard(req, res) {
+    const [
+      totalUsers,
+      activeUsers,
+      challengeActive,
+      challengeDraft,
+      challengeCompleted,
+      eventsActive,
+      eventsDraft,
+      tipsPublished,
+      tipsDraft
+    ] = await Promise.all([
+      User.countDocuments(),
+      User.countDocuments({ isActive: true }),
+      Challenge.countDocuments({ status: 'active' }),
+      Challenge.countDocuments({ status: 'draft' }),
+      Challenge.countDocuments({ status: 'completed' }),
+      Event.countDocuments({ status: 'active' }),
+      Event.countDocuments({ status: 'draft' }),
+      Tip.countDocuments({ $or: [{ status: 'published' }, { status: { $exists: false } }] }),
+      Tip.countDocuments({ status: 'draft' })
+    ])
+
+    const recentActivity = await listActivity(8)
+    const latestContent = await getSiteContent()
+
+    const latestChallenges = await Challenge.find({})
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select('title status featured registeredParticipants createdAt')
+      .lean()
+
+    const latestEvents = await Event.find({})
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select('title status registeredParticipants capacity createdAt')
+      .lean()
+
+    return res.json({
+      success: true,
+      data: {
+        stats: {
+          users: totalUsers,
+          activeUsers,
+          challenges: challengeActive,
+          events: eventsActive,
+          tips: tipsPublished
+        },
+        breakdown: {
+          challenges: { active: challengeActive, draft: challengeDraft, completed: challengeCompleted },
+          events: { active: eventsActive, draft: eventsDraft },
+          tips: { published: tipsPublished, draft: tipsDraft }
+        },
+        recentActivity,
+        latestContentUpdatedAt: latestContent.updatedAt,
+        latestChallenges,
+        latestEvents
+      }
+    })
+  }
+
+  async getContent(req, res) {
+    const content = await getSiteContent()
+    return res.json({
+      success: true,
+      data: content
+    })
+  }
+
+  async updateContent(req, res) {
+    const content = await updateSiteContent(req.body, req.admin?.email || 'admin')
+
+    await logActivity({
+      action: 'update',
+      entity: 'site-content',
+      entityId: 'main',
+      detail: 'Updated public site content',
+      performedBy: req.admin?.email
+    })
+
+    return res.json({
+      success: true,
+      message: 'Content updated',
+      data: content
+    })
+  }
+
+  async listUsers(req, res) {
+    const { page = 1, limit = 20, search = '' } = req.query
+    const numericLimit = Math.min(parseInt(limit, 10) || 20, 100)
+    const numericPage = parseInt(page, 10) || 1
+
+    const query = {}
+    if (search) {
+      query.$or = [
+        { email: { $regex: search, $options: 'i' } },
+        { displayName: { $regex: search, $options: 'i' } }
+      ]
+    }
+
+    const [users, total] = await Promise.all([
+      User.find(query)
+        .sort({ joinedAt: -1 })
+        .skip((numericPage - 1) * numericLimit)
+        .limit(numericLimit)
+        .select('displayName email photoURL role isActive stats joinedAt lastActive'),
+      User.countDocuments(query)
+    ])
+
+    return res.json({
+      success: true,
+      data: {
+        users,
+        pagination: {
+          page: numericPage,
+          limit: numericLimit,
+          total,
+          pages: Math.ceil(total / numericLimit)
+        }
+      }
+    })
+  }
+
+  async updateUser(req, res) {
+    const { id } = req.params
+    const { role, isActive } = req.body || {}
+
+    const update = {
+      ...(role ? { role } : {}),
+      ...(typeof isActive === 'boolean' ? { isActive } : {}),
+      updatedAt: new Date()
+    }
+
+    const user = await User.findByIdAndUpdate(id, { $set: update }, { new: true }).lean()
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'User not found' }
+      })
+    }
+
+    await logActivity({
+      action: 'update',
+      entity: 'user',
+      entityId: id,
+      detail: `Updated user ${user.email}`,
+      performedBy: req.admin?.email,
+      metadata: { role, isActive }
+    })
+
+    return res.json({
+      success: true,
+      message: 'User updated',
+      data: user
+    })
+  }
+
+  async listChallenges(req, res) {
+    const { status, search = '', limit = 25 } = req.query
+    const numericLimit = Math.min(parseInt(limit, 10) || 25, 100)
+    const query = {}
+    if (status) query.status = status
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { category: { $regex: search, $options: 'i' } }
+      ]
+    }
+
+    const challenges = await Challenge.find(query)
+      .sort({ createdAt: -1 })
+      .limit(numericLimit)
+      .select('title status featured registeredParticipants createdAt startDate endDate category')
+      .lean()
+
+    return res.json({
+      success: true,
+      data: challenges
+    })
+  }
+
+  async updateChallengeStatus(req, res) {
+    const { id } = req.params
+    const { status, featured } = req.body || {}
+
+    const update = {
+      ...(status ? { status } : {}),
+      ...(typeof featured === 'boolean' ? { featured } : {}),
+      updatedAt: new Date()
+    }
+
+    const challenge = await Challenge.findByIdAndUpdate(id, { $set: update }, { new: true }).lean()
+    if (!challenge) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'Challenge not found' }
+      })
+    }
+
+    await logActivity({
+      action: 'update',
+      entity: 'challenge',
+      entityId: id,
+      detail: `Updated challenge "${challenge.title}"`,
+      performedBy: req.admin?.email,
+      metadata: { status, featured }
+    })
+
+    return res.json({
+      success: true,
+      message: 'Challenge updated',
+      data: challenge
+    })
+  }
+
+  async listEvents(req, res) {
+    const { status, search = '', limit = 25 } = req.query
+    const numericLimit = Math.min(parseInt(limit, 10) || 25, 100)
+    const query = {}
+    if (status) query.status = status
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { location: { $regex: search, $options: 'i' } }
+      ]
+    }
+
+    const events = await Event.find(query)
+      .sort({ createdAt: -1 })
+      .limit(numericLimit)
+      .select('title status registeredParticipants capacity createdAt date location')
+      .lean()
+
+    return res.json({
+      success: true,
+      data: events
+    })
+  }
+
+  async updateEventStatus(req, res) {
+    const { id } = req.params
+    const { status } = req.body || {}
+
+    const update = { updatedAt: new Date() }
+    if (status) update.status = status
+
+    const event = await Event.findByIdAndUpdate(
+      id,
+      { $set: update },
+      { new: true }
+    ).lean()
+
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'Event not found' }
+      })
+    }
+
+    await logActivity({
+      action: 'update',
+      entity: 'event',
+      entityId: id,
+      detail: `Updated event "${event.title}"`,
+      performedBy: req.admin?.email,
+      metadata: { status }
+    })
+
+    return res.json({
+      success: true,
+      message: 'Event updated',
+      data: event
+    })
+  }
+
+  async listTips(req, res) {
+    const { status, search = '', limit = 25 } = req.query
+    const numericLimit = Math.min(parseInt(limit, 10) || 25, 100)
+    const query = {}
+    if (status) query.status = status
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { content: { $regex: search, $options: 'i' } }
+      ]
+    }
+
+    const tips = await Tip.find(query)
+      .sort({ createdAt: -1 })
+      .limit(numericLimit)
+      .select('id title status authorName upvoteCount createdAt category')
+      .lean()
+
+    return res.json({
+      success: true,
+      data: tips
+    })
+  }
+
+  async updateTipStatus(req, res) {
+    const { id } = req.params
+    const { status } = req.body || {}
+
+    const tip = await Tip.findOneAndUpdate(
+      { id },
+      { $set: { ...(status ? { status } : {}), updatedAt: new Date() } },
+      { new: true }
+    ).lean()
+
+    if (!tip) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'Tip not found' }
+      })
+    }
+
+    await logActivity({
+      action: 'update',
+      entity: 'tip',
+      entityId: id,
+      detail: `Updated tip "${tip.title}"`,
+      performedBy: req.admin?.email,
+      metadata: { status }
+    })
+
+    return res.json({
+      success: true,
+      message: 'Tip updated',
+      data: tip
+    })
+  }
+
+  async activity(req, res) {
+    const { limit = 30 } = req.query
+    const activity = await listActivity(Math.min(parseInt(limit, 10) || 30, 100))
+    return res.json({
+      success: true,
+      data: activity
+    })
+  }
+}
+
+module.exports = new AdminController()

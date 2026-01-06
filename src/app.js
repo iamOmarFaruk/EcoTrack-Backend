@@ -23,6 +23,8 @@ const authRoutes = require('./routes/auth');
 const eventRoutes = require('./routes/events');
 const tipRoutes = require('./routes/tips');
 const challengeRoutes = require('./routes/challenges');
+const adminRoutes = require('./routes/admin');
+const siteRoutes = require('./routes/site');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -166,7 +168,9 @@ app.get('/', (req, res) => {
       users: `${req.protocol}://${req.get('host')}/api/users`,
       events: `${req.protocol}://${req.get('host')}/api/events`,
       tips: `${req.protocol}://${req.get('host')}/api/tips`,
-      challenges: `${req.protocol}://${req.get('host')}/api/challenges`
+      challenges: `${req.protocol}://${req.get('host')}/api/challenges`,
+      admin: `${req.protocol}://${req.get('host')}/api/admin`,
+      siteContent: `${req.protocol}://${req.get('host')}/api/site/content`
     }
   });
 });
@@ -247,6 +251,32 @@ app.get('/api', (req, res) => {
             access: 'Private (requires Firebase authentication)',
             headers: { Authorization: 'Bearer <firebase_token>' },
             note: 'Returns 404 if user profile not found in database'
+          }
+        ]
+      },
+
+      // Admin Control Panel
+      admin: {
+        description: 'Secure admin dashboard endpoints',
+        baseRoute: '/api/admin',
+        endpoints: [
+          {
+            method: 'POST',
+            path: '/api/admin/login',
+            description: 'Authenticate into the admin control panel',
+            access: 'Public (admin credentials required)'
+          },
+          {
+            method: 'GET',
+            path: '/api/admin/dashboard',
+            description: 'Get admin dashboard metrics',
+            access: 'Private (requires admin token)'
+          },
+          {
+            method: 'PUT',
+            path: '/api/admin/content',
+            description: 'Update marketing content (testimonials, how it works, footer)',
+            access: 'Private (requires admin token)'
           }
         ]
       },
@@ -375,6 +405,20 @@ app.get('/api', (req, res) => {
             params: { id: 'string (tip ID)' }
           }
         ]
+      },
+
+      // Public site content
+      site: {
+        description: 'Public marketing content for the frontend',
+        baseRoute: '/api/site',
+        endpoints: [
+          {
+            method: 'GET',
+            path: '/api/site/content',
+            description: 'Fetch testimonials, how it works, and footer content',
+            access: 'Public'
+          }
+        ]
       }
     },
 
@@ -453,6 +497,8 @@ app.use('/api/users', userRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/tips', tipRoutes);
 app.use('/api/challenges', challengeRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/site', siteRoutes);
 
 // 404 handler for unknown routes
 app.use('*', notFound);
