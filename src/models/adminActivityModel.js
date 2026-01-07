@@ -27,8 +27,13 @@ async function listActivity(limit = 20) {
     .lean()
 }
 
+async function clearActivity() {
+  return AdminActivity.deleteMany({})
+}
+
 module.exports = {
   AdminActivity,
   logActivity,
-  listActivity
+  listActivity,
+  clearActivity
 }

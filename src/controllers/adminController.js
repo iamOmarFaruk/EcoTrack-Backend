@@ -1,7 +1,7 @@
 const { getAdminConfig, verifyPassword, safeCompare } = require('../config/admin')
 const { signAdminToken } = require('../middleware/adminAuth')
 const { getSiteContent, updateSiteContent } = require('../models/siteContentModel')
-const { logActivity, listActivity } = require('../models/adminActivityModel')
+const { logActivity, listActivity, clearActivity } = require('../models/adminActivityModel')
 const { mongoose } = require('../config/mongoose')
 
 // Ensure models are registered
@@ -415,6 +415,17 @@ class AdminController {
     return res.json({
       success: true,
       data: activity
+    })
+  }
+
+  async clearActivity(req, res) {
+    const result = await clearActivity()
+    return res.json({
+      success: true,
+      message: 'Activity log cleared',
+      data: {
+        deletedCount: result?.deletedCount || 0
+      }
     })
   }
 }
