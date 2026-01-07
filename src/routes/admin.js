@@ -33,5 +33,6 @@ router.patch('/tips/:id/status', adminAuth, adminController.updateTipStatus)
 // Activity log
 router.get('/activity', adminAuth, adminController.activity)
 router.delete('/activity', adminAuth, adminController.clearActivity)
+router.delete('/activity/:id', adminAuth, adminController.deleteActivity)
 
 module.exports = router

@@ -1,7 +1,7 @@
 const { getAdminConfig, verifyPassword, safeCompare } = require('../config/admin')
 const { signAdminToken } = require('../middleware/adminAuth')
 const { getSiteContent, updateSiteContent } = require('../models/siteContentModel')
-const { logActivity, listActivity, clearActivity } = require('../models/adminActivityModel')
+const { logActivity, listActivity, clearActivity, deleteActivity } = require('../models/adminActivityModel')
 const { mongoose } = require('../config/mongoose')
 
 // Ensure models are registered
@@ -426,6 +426,21 @@ class AdminController {
       data: {
         deletedCount: result?.deletedCount || 0
       }
+    })
+  }
+
+  async deleteActivity(req, res) {
+    const { id } = req.params
+    const deleted = await deleteActivity(id)
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'Activity not found' }
+      })
+    }
+    return res.json({
+      success: true,
+      message: 'Activity deleted'
     })
   }
 }

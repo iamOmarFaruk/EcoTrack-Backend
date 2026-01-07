@@ -31,9 +31,14 @@ async function clearActivity() {
   return AdminActivity.deleteMany({})
 }
 
+async function deleteActivity(id) {
+  return AdminActivity.findByIdAndDelete(id)
+}
+
 module.exports = {
   AdminActivity,
   logActivity,
   listActivity,
-  clearActivity
+  clearActivity,
+  deleteActivity
 }
