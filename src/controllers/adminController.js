@@ -2,6 +2,8 @@ const { getAdminConfig, verifyPassword, safeCompare } = require('../config/admin
 const { signAdminToken } = require('../middleware/adminAuth')
 const { getSiteContent, updateSiteContent } = require('../models/siteContentModel')
 const { logActivity, listActivity, clearActivity, deleteActivity } = require('../models/adminActivityModel')
+const TipModel = require('../models/tipModel')
+const { userDb } = require('../models/userModel')
 const { mongoose } = require('../config/mongoose')
 
 // Ensure models are registered
@@ -204,6 +206,14 @@ class AdminController {
     const { id } = req.params
     const { role, isActive } = req.body || {}
 
+    const existingUser = await User.findById(id).lean()
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'User not found' }
+      })
+    }
+
     const update = {
       ...(role ? { role } : {}),
       ...(typeof isActive === 'boolean' ? { isActive } : {}),
@@ -211,11 +221,9 @@ class AdminController {
     }
 
     const user = await User.findByIdAndUpdate(id, { $set: update }, { new: true }).lean()
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: { message: 'User not found' }
-      })
+
+    if (typeof isActive === 'boolean' && existingUser.isActive && !isActive) {
+      await TipModel.removeUpvotesByUser(existingUser.firebaseUid)
     }
 
     await logActivity({
@@ -249,12 +257,23 @@ class AdminController {
     const challenges = await Challenge.find(query)
       .sort({ createdAt: -1 })
       .limit(numericLimit)
-      .select('title status featured registeredParticipants createdAt startDate endDate category')
+      .select('title status featured registeredParticipants createdAt startDate endDate category createdBy')
       .lean()
+
+    const creatorIds = challenges.map((challenge) => challenge.createdBy).filter(Boolean)
+    const creatorMap = await userDb.getUserStatusMap(creatorIds)
+    const challengesWithCreator = challenges.map((challenge) => {
+      const creator = creatorMap.get(challenge.createdBy)
+      return {
+        ...challenge,
+        creatorIsActive: creator ? creator.isActive : true,
+        creatorName: creator?.displayName || null
+      }
+    })
 
     return res.json({
       success: true,
-      data: challenges
+      data: challengesWithCreator
     })
   }
 
@@ -307,12 +326,23 @@ class AdminController {
     const events = await Event.find(query)
       .sort({ createdAt: -1 })
       .limit(numericLimit)
-      .select('title status registeredParticipants capacity createdAt date location')
+      .select('title status registeredParticipants capacity createdAt date location createdBy')
       .lean()
+
+    const creatorIds = events.map((event) => event.createdBy).filter(Boolean)
+    const creatorMap = await userDb.getUserStatusMap(creatorIds)
+    const eventsWithCreator = events.map((event) => {
+      const creator = creatorMap.get(event.createdBy)
+      return {
+        ...event,
+        creatorIsActive: creator ? creator.isActive : true,
+        creatorName: creator?.displayName || null
+      }
+    })
 
     return res.json({
       success: true,
-      data: events
+      data: eventsWithCreator
     })
   }
 
@@ -367,12 +397,23 @@ class AdminController {
     const tips = await Tip.find(query)
       .sort({ createdAt: -1 })
       .limit(numericLimit)
-      .select('id title status authorName upvoteCount createdAt category')
+      .select('id title status authorName upvoteCount createdAt category authorId')
       .lean()
+
+    const authorIds = tips.map((tip) => tip.authorId).filter(Boolean)
+    const authorMap = await userDb.getUserStatusMap(authorIds)
+    const tipsWithAuthor = tips.map((tip) => {
+      const author = authorMap.get(tip.authorId)
+      return {
+        ...tip,
+        authorIsActive: author ? author.isActive : true,
+        authorDisplayName: author?.displayName || null
+      }
+    })
 
     return res.json({
       success: true,
-      data: tips
+      data: tipsWithAuthor
     })
   }
 

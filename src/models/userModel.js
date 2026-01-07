@@ -65,6 +65,19 @@ const userDb = {
     return User.find({}, { firebaseUid: 0 }).limit(limit).skip(skip).lean();
   },
 
+  async getInactiveUserIds() {
+    const users = await User.find({ isActive: false }).select('firebaseUid').lean();
+    return users.map((user) => user.firebaseUid);
+  },
+
+  async getUserStatusMap(userIds = []) {
+    if (!Array.isArray(userIds) || userIds.length === 0) return new Map();
+    const users = await User.find({ firebaseUid: { $in: userIds } })
+      .select('firebaseUid displayName isActive')
+      .lean();
+    return new Map(users.map((user) => [user.firebaseUid, user]));
+  },
+
   async updateStats(firebaseUid, statUpdates) {
     const user = await User.findOneAndUpdate(
       { firebaseUid },

@@ -135,7 +135,8 @@ class TipModel {
       search,
       authorId,
       category,
-      status
+      status,
+      excludeAuthorIds
     } = options;
 
     // Build query
@@ -146,8 +147,23 @@ class TipModel {
       query.$text = { $search: search };
     }
 
+    const excludedAuthors = Array.isArray(excludeAuthorIds) ? excludeAuthorIds.filter(Boolean) : [];
+
     if (authorId) {
+      if (excludedAuthors.includes(authorId)) {
+        return {
+          tips: [],
+          pagination: {
+            page,
+            limit,
+            total: 0,
+            pages: 0
+          }
+        };
+      }
       query.authorId = authorId;
+    } else if (excludedAuthors.length > 0) {
+      query.authorId = { $nin: excludedAuthors };
     }
 
     if (category && category !== 'All') {
@@ -360,22 +376,55 @@ class TipModel {
   /**
    * Get trending tips (most upvoted recently)
    */
-  static async getTrending(days = 7, limit = 10) {
+  static async getTrending(days = 7, limit = 10, options = {}) {
     const collection = await this.getCollection();
+    const excludeAuthorIds = Array.isArray(options.excludeAuthorIds) ? options.excludeAuthorIds.filter(Boolean) : [];
 
     const daysAgo = new Date();
     daysAgo.setDate(daysAgo.getDate() - days);
 
+    const query = {
+      createdAt: { $gte: daysAgo }
+    };
+
+    if (excludeAuthorIds.length > 0) {
+      query.authorId = { $nin: excludeAuthorIds };
+    }
+
     const tips = await collection
-      .find({
-        createdAt: { $gte: daysAgo }
-      })
+      .find(query)
       .select('-upvotes')
       .sort({ upvoteCount: -1 })
       .limit(limit)
       .lean();
 
     return tips.map(tip => this.computeFields(tip));
+  }
+
+  static async removeUpvotesByUser(userId) {
+    const collection = await this.getCollection();
+
+    return collection.updateMany(
+      { 'upvotes.userId': userId },
+      [
+        {
+          $set: {
+            upvotes: {
+              $filter: {
+                input: '$upvotes',
+                as: 'vote',
+                cond: { $ne: ['$$vote.userId', userId] }
+              }
+            }
+          }
+        },
+        {
+          $set: {
+            upvoteCount: { $size: '$upvotes' }
+          }
+        }
+      ]
+    );
   }
 
   /**

@@ -14,6 +14,7 @@ const {
   isTitleUnique,
   getCommunityImpactTotals,
 } = require("../models/challengeModel");
+const { userDb } = require('../models/userModel');
 
 /**
  * Validate challenge data
@@ -213,7 +214,11 @@ exports.getAllChallenges = async (req, res) => {
       order,
     };
 
-    const result = await getChallenges(filters);
+    const inactiveUserIds = await userDb.getInactiveUserIds();
+    const result = await getChallenges({
+      ...filters,
+      excludeCreatorIds: inactiveUserIds,
+    });
 
     res.json({
       success: true,
@@ -238,7 +243,10 @@ exports.getChallengeBySlug = async (req, res) => {
     const { slug } = req.params;
     const userId = req.user?.uid || null;
 
-    const challenge = await getChallengeBySlug(slug, userId);
+    const inactiveUserIds = await userDb.getInactiveUserIds();
+    const challenge = await getChallengeBySlug(slug, userId, {
+      excludeCreatorIds: inactiveUserIds,
+    });
 
     if (!challenge) {
       return res.status(404).json({

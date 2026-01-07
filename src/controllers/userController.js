@@ -147,6 +147,15 @@ class UserController {
           }
         });
       }
+      if (!user.isActive) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            message: 'User not found',
+            code: 'USER_NOT_FOUND'
+          }
+        });
+      }
 
       // Return only public information
       const publicProfile = {
@@ -188,9 +197,18 @@ class UserController {
       const { id } = req.params;
       const { page = 1, limit = 20 } = req.query;
 
-      const user = userMockDb.findById(id);
+      const user = await userDb.findByFirebaseUid(id);
 
       if (!user) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            message: 'User not found',
+            code: 'USER_NOT_FOUND'
+          }
+        });
+      }
+      if (!user.isActive) {
         return res.status(404).json({
           success: false,
           error: {

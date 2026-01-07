@@ -147,10 +147,12 @@ async function getChallenges(filters = {}) {
     featured,
     sortBy = "startDate",
     order = "desc",
+    excludeCreatorIds,
   } = filters;
 
   const skip = (page - 1) * limit;
   const query = {};
+  const excludedCreators = Array.isArray(excludeCreatorIds) ? excludeCreatorIds.filter(Boolean) : [];
 
   // Apply filters
   if (status) query.status = status;
@@ -160,6 +162,10 @@ async function getChallenges(filters = {}) {
   // Apply search
   if (search) {
     query.$text = { $search: search };
+  }
+
+  if (excludedCreators.length > 0) {
+    query.createdBy = { $nin: excludedCreators };
   }
 
   // Sort configuration
@@ -188,10 +194,15 @@ async function getChallenges(filters = {}) {
 /**
  * Get challenge by slug (for viewing)
  */
-async function getChallengeBySlug(slug, userId = null) {
+async function getChallengeBySlug(slug, userId = null, options = {}) {
   const challenge = await Challenge.findOne({ slug }).lean();
 
   if (!challenge) return null;
+
+  const excludeCreatorIds = Array.isArray(options.excludeCreatorIds) ? options.excludeCreatorIds : [];
+  if (excludeCreatorIds.includes(challenge.createdBy)) {
+    return null;
+  }
 
   // Add computed fields if user is authenticated
   if (userId) {

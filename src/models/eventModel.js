@@ -109,6 +109,7 @@ const getAllEvents = async (filters = {}) => {
   const skip = (page - 1) * limit;
 
   const query = {};
+  const excludeCreatorIds = Array.isArray(filters.excludeCreatorIds) ? filters.excludeCreatorIds.filter(Boolean) : [];
 
   if (filters.status) {
     query.status = filters.status;
@@ -139,6 +140,10 @@ const getAllEvents = async (filters = {}) => {
     query.$text = { $search: filters.search };
   }
 
+  if (excludeCreatorIds.length > 0) {
+    query.createdBy = { $nin: excludeCreatorIds };
+  }
+
   const sortField = filters.sortBy || 'date';
   const sortOrder = filters.order === 'desc' ? -1 : 1;
   const sort = { [sortField]: sortOrder };
@@ -165,7 +170,7 @@ const getAllEvents = async (filters = {}) => {
   };
 };
 
-const getEventById = async (eventId, userId = null) => {
+const getEventById = async (eventId, userId = null, options = {}) => {
   // Check if eventId is a valid MongoDB ObjectId or a slug
   const query = mongoose.Types.ObjectId.isValid(eventId) && eventId.length === 24
     ? { _id: eventId }
@@ -174,6 +179,11 @@ const getEventById = async (eventId, userId = null) => {
   const event = await Event.findOne(query).lean();
 
   if (!event) {
+    return null;
+  }
+
+  const excludeCreatorIds = Array.isArray(options.excludeCreatorIds) ? options.excludeCreatorIds : [];
+  if (excludeCreatorIds.includes(event.createdBy)) {
     return null;
   }
 

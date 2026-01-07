@@ -1,8 +1,13 @@
 const eventModel = require('../models/eventModel');
+const { userDb } = require('../models/userModel');
 
 const getAllEvents = async (req, res) => {
   try {
-    const result = await eventModel.getAllEvents(req.query);
+    const inactiveUserIds = await userDb.getInactiveUserIds();
+    const result = await eventModel.getAllEvents({
+      ...req.query,
+      excludeCreatorIds: inactiveUserIds
+    });
     
     res.status(200).json({
       success: true,
@@ -20,7 +25,10 @@ const getAllEvents = async (req, res) => {
 const getEventById = async (req, res) => {
   try {
     const userId = req.user ? req.user.uid : null;
-    const result = await eventModel.getEventById(req.params.id, userId);
+    const inactiveUserIds = await userDb.getInactiveUserIds();
+    const result = await eventModel.getEventById(req.params.id, userId, {
+      excludeCreatorIds: inactiveUserIds
+    });
     
     if (!result) {
       return res.status(404).json({

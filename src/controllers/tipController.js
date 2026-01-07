@@ -1,4 +1,5 @@
 const TipModel = require('../models/tipModel');
+const { userDb } = require('../models/userModel');
 
 /**
  * Tips Controller
@@ -34,6 +35,7 @@ exports.getAllTips = async (req, res, next) => {
     // Validate order
     const validOrder = ['asc', 'desc'].includes(order) ? order : 'desc';
 
+    const inactiveUserIds = await userDb.getInactiveUserIds();
     const result = await TipModel.find({}, {
       page: validPage,
       limit: validLimit,
@@ -42,7 +44,8 @@ exports.getAllTips = async (req, res, next) => {
       search,
       authorId,
       category,
-      status
+      status,
+      excludeAuthorIds: inactiveUserIds
     });
 
     res.status(200).json({
@@ -328,7 +331,8 @@ exports.getTrendingTips = async (req, res, next) => {
     const validDays = Math.min(30, Math.max(1, parseInt(days)));
     const validLimit = Math.min(50, Math.max(1, parseInt(limit)));
 
-    const tips = await TipModel.getTrending(validDays, validLimit);
+    const inactiveUserIds = await userDb.getInactiveUserIds();
+    const tips = await TipModel.getTrending(validDays, validLimit, { excludeAuthorIds: inactiveUserIds });
 
     res.status(200).json({
       success: true,
