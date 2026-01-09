@@ -81,7 +81,11 @@ const challengeSchema = new mongoose.Schema({
   startDate: { type: Date, required: true },
   endDate: { type: Date, required: true },
   featured: { type: Boolean, default: false },
-  status: { type: String, default: "active" },
+  status: {
+    type: String,
+    enum: ["draft", "active", "completed", "cancelled"],
+    default: "active"
+  },
   createdBy: { type: String, required: true },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
@@ -124,7 +128,7 @@ async function createChallenge(challengeData, userId) {
     startDate: challengeData.startDate,
     endDate: challengeData.endDate,
     featured: challengeData.featured || false,
-    status: "active",
+    status: challengeData.status || "active",
     createdBy: userId,
     createdAt: now,
     updatedAt: now,
@@ -155,7 +159,12 @@ async function getChallenges(filters = {}) {
   const excludedCreators = Array.isArray(excludeCreatorIds) ? excludeCreatorIds.filter(Boolean) : [];
 
   // Apply filters
-  if (status) query.status = status;
+  if (status) {
+    query.status = status;
+  } else {
+    // By default, exclude draft challenges from public view
+    query.status = { $ne: "draft" };
+  }
   if (category) query.category = category;
   if (featured !== undefined) query.featured = featured === "true";
 
@@ -201,6 +210,11 @@ async function getChallengeBySlug(slug, userId = null, options = {}) {
 
   const excludeCreatorIds = Array.isArray(options.excludeCreatorIds) ? options.excludeCreatorIds : [];
   if (excludeCreatorIds.includes(challenge.createdBy)) {
+    return null;
+  }
+
+  // Don't show draft challenges to non-creators
+  if (challenge.status === "draft" && challenge.createdBy !== userId) {
     return null;
   }
 
