@@ -397,7 +397,7 @@ class AdminController {
     const tips = await Tip.find(query)
       .sort({ createdAt: -1 })
       .limit(numericLimit)
-      .select('id title status authorName upvoteCount createdAt category authorId')
+      .select('id title content status authorName upvoteCount createdAt category authorId')
       .lean()
 
     const authorIds = tips.map((tip) => tip.authorId).filter(Boolean)
@@ -419,11 +419,17 @@ class AdminController {
 
   async updateTipStatus(req, res) {
     const { id } = req.params
-    const { status } = req.body || {}
+    const { status, title, content, category } = req.body || {}
+
+    const updateFields = { updatedAt: new Date() }
+    if (status) updateFields.status = status
+    if (title !== undefined) updateFields.title = title.trim()
+    if (content !== undefined) updateFields.content = content.trim()
+    if (category !== undefined) updateFields.category = category
 
     const tip = await Tip.findOneAndUpdate(
       { id },
-      { $set: { ...(status ? { status } : {}), updatedAt: new Date() } },
+      { $set: updateFields },
       { new: true }
     ).lean()
 
@@ -434,13 +440,19 @@ class AdminController {
       })
     }
 
+    const changes = []
+    if (status) changes.push(`status: ${status}`)
+    if (title) changes.push('title updated')
+    if (content) changes.push('content updated')
+    if (category) changes.push(`category: ${category}`)
+
     await logActivity({
       action: 'update',
       entity: 'tip',
       entityId: id,
-      detail: `Updated tip "${tip.title}"`,
+      detail: `Updated tip "${tip.title}" (${changes.join(', ')})`,
       performedBy: req.admin?.email,
-      metadata: { status }
+      metadata: { status, title: !!title, content: !!content, category }
     })
 
     return res.json({
