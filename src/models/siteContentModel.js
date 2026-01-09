@@ -23,9 +23,6 @@ const siteContentSchema = new mongoose.Schema({
       title: { type: String, default: 'EcoTrack' },
       description: { type: String, default: '' }
     },
-    exploreLinks: [
-      { label: String, path: String, icon: String }
-    ],
     resourceLinks: [
       { label: String, path: String }
     ],
@@ -116,11 +113,6 @@ const defaultContent = {
       title: 'EcoTrack',
       description: 'Empowering individuals to track their environmental impact and build a sustainable future through community-driven action.'
     },
-    exploreLinks: [
-      { label: 'Challenges', path: '/challenges', icon: 'plant' },
-      { label: 'Impact Tips', path: '/tips', icon: 'bulb' },
-      { label: 'Local Events', path: '/events', icon: 'calendar' }
-    ],
     resourceLinks: [
       { label: 'About Us', path: '/about' },
       { label: 'Contact', path: '/contact' },
@@ -164,7 +156,6 @@ function normalizeContent(content) {
     footer: {
       ...defaultContent.footer,
       ...content.footer,
-      exploreLinks: content.footer?.exploreLinks?.length ? content.footer.exploreLinks : defaultContent.footer.exploreLinks,
       resourceLinks: content.footer?.resourceLinks?.length ? content.footer.resourceLinks : defaultContent.footer.resourceLinks,
       legalLinks: content.footer?.legalLinks?.length ? content.footer.legalLinks : defaultContent.footer.legalLinks,
       contact: {
