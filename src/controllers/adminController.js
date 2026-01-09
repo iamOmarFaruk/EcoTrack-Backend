@@ -382,6 +382,115 @@ class AdminController {
     })
   }
 
+  async getEvent(req, res) {
+    const { id } = req.params
+
+    const event = await Event.findById(id).lean()
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'Event not found' }
+      })
+    }
+
+    return res.json({
+      success: true,
+      data: event
+    })
+  }
+
+  async updateEvent(req, res) {
+    const { id } = req.params
+    const {
+      title,
+      description,
+      detailedDescription,
+      date,
+      location,
+      organizer,
+      capacity,
+      duration,
+      requirements,
+      benefits,
+      image,
+      category,
+      status
+    } = req.body || {}
+
+    const existingEvent = await Event.findById(id).lean()
+    if (!existingEvent) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'Event not found' }
+      })
+    }
+
+    const updateFields = { updatedAt: new Date() }
+    if (title !== undefined) updateFields.title = title.trim()
+    if (description !== undefined) updateFields.description = description.trim()
+    if (detailedDescription !== undefined) updateFields.detailedDescription = detailedDescription.trim()
+    if (date !== undefined) updateFields.date = new Date(date)
+    if (location !== undefined) updateFields.location = location.trim()
+    if (organizer !== undefined) updateFields.organizer = organizer.trim()
+    if (capacity !== undefined) updateFields.capacity = parseInt(capacity, 10)
+    if (duration !== undefined) updateFields.duration = duration.trim()
+    if (requirements !== undefined) updateFields.requirements = requirements.trim()
+    if (benefits !== undefined) updateFields.benefits = benefits.trim()
+    if (image !== undefined) updateFields.image = image
+    if (category !== undefined) updateFields.category = category
+    if (status !== undefined) updateFields.status = status
+
+    const event = await Event.findByIdAndUpdate(
+      id,
+      { $set: updateFields },
+      { new: true }
+    ).lean()
+
+    const changes = Object.keys(updateFields).filter(k => k !== 'updatedAt')
+    await logActivity({
+      action: 'update',
+      entity: 'event',
+      entityId: id,
+      detail: `Updated event "${event.title}" (${changes.join(', ')})`,
+      performedBy: req.admin?.email,
+      metadata: { fields: changes }
+    })
+
+    return res.json({
+      success: true,
+      message: 'Event updated',
+      data: event
+    })
+  }
+
+  async deleteEvent(req, res) {
+    const { id } = req.params
+
+    const event = await Event.findById(id).lean()
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'Event not found' }
+      })
+    }
+
+    await Event.findByIdAndDelete(id)
+
+    await logActivity({
+      action: 'delete',
+      entity: 'event',
+      entityId: id,
+      detail: `Deleted event "${event.title}"`,
+      performedBy: req.admin?.email,
+      metadata: { title: event.title, status: event.status }
+    })
+
+    return res.json({
+      success: true,
+      message: 'Event deleted successfully'
+    })
+  }
+
   async listTips(req, res) {
     const { status, search = '', limit = 25 } = req.query
     const numericLimit = Math.min(parseInt(limit, 10) || 25, 100)

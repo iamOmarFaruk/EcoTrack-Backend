@@ -24,7 +24,10 @@ router.patch('/challenges/:id/status', adminAuth, adminController.updateChalleng
 
 // Events moderation
 router.get('/events', adminAuth, adminController.listEvents)
+router.get('/events/:id', adminAuth, adminController.getEvent)
+router.put('/events/:id', adminAuth, adminController.updateEvent)
 router.patch('/events/:id/status', adminAuth, adminController.updateEventStatus)
+router.delete('/events/:id', adminAuth, adminController.deleteEvent)
 
 // Tips moderation
 router.get('/tips', adminAuth, adminController.listTips)
