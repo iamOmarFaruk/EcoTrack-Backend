@@ -311,6 +311,134 @@ class AdminController {
     })
   }
 
+  async getChallenge(req, res) {
+    const { id } = req.params
+
+    const challenge = await Challenge.findById(id).lean()
+    if (!challenge) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'Challenge not found' }
+      })
+    }
+
+    return res.json({
+      success: true,
+      data: challenge
+    })
+  }
+
+  async updateChallenge(req, res) {
+    const { id } = req.params
+    const {
+      title,
+      shortDescription,
+      detailedDescription,
+      category,
+      status,
+      duration,
+      startDate,
+      endDate,
+      communityImpact,
+      image,
+      featured
+    } = req.body || {}
+
+    const existingChallenge = await Challenge.findById(id).lean()
+    if (!existingChallenge) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'Challenge not found' }
+      })
+    }
+
+    const updateFields = { updatedAt: new Date() }
+    if (title !== undefined) updateFields.title = title.trim()
+    if (shortDescription !== undefined) updateFields.shortDescription = shortDescription.trim()
+    if (detailedDescription !== undefined) updateFields.detailedDescription = detailedDescription.trim()
+    if (category !== undefined) updateFields.category = category
+    if (status !== undefined) updateFields.status = status
+    if (duration !== undefined) updateFields.duration = duration.trim()
+    if (startDate !== undefined) updateFields.startDate = new Date(startDate)
+    if (endDate !== undefined) updateFields.endDate = new Date(endDate)
+    if (communityImpact !== undefined) updateFields.communityImpact = communityImpact.trim()
+    if (image !== undefined) updateFields.image = image
+    if (typeof featured === 'boolean') updateFields.featured = featured
+
+    const challenge = await Challenge.findByIdAndUpdate(
+      id,
+      { $set: updateFields },
+      { new: true }
+    ).lean()
+
+    const changes = Object.keys(updateFields).filter(k => k !== 'updatedAt')
+    await logActivity({
+      action: 'update',
+      entity: 'challenge',
+      entityId: id,
+      detail: `Updated challenge "${challenge.title}" (${changes.join(', ')})`,
+      performedBy: req.admin?.email,
+      metadata: { fields: changes }
+    })
+
+    return res.json({
+      success: true,
+      message: 'Challenge updated',
+      data: challenge
+    })
+  }
+
+  async deleteChallenge(req, res) {
+    const { id } = req.params
+
+    const challenge = await Challenge.findById(id).lean()
+    if (!challenge) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'Challenge not found' }
+      })
+    }
+
+    // If challenge has participants, cancel it instead of deleting
+    if (challenge.registeredParticipants > 0) {
+      await Challenge.findByIdAndUpdate(id, {
+        $set: { status: 'cancelled', updatedAt: new Date() }
+      })
+
+      await logActivity({
+        action: 'cancel',
+        entity: 'challenge',
+        entityId: id,
+        detail: `Cancelled challenge "${challenge.title}" (had ${challenge.registeredParticipants} participants)`,
+        performedBy: req.admin?.email,
+        metadata: { title: challenge.title, participants: challenge.registeredParticipants }
+      })
+
+      return res.json({
+        success: true,
+        message: 'Challenge cancelled (had active participants)',
+        cancelled: true
+      })
+    }
+
+    // Hard delete if no participants
+    await Challenge.findByIdAndDelete(id)
+
+    await logActivity({
+      action: 'delete',
+      entity: 'challenge',
+      entityId: id,
+      detail: `Deleted challenge "${challenge.title}"`,
+      performedBy: req.admin?.email,
+      metadata: { title: challenge.title, status: challenge.status }
+    })
+
+    return res.json({
+      success: true,
+      message: 'Challenge deleted successfully'
+    })
+  }
+
   async listEvents(req, res) {
     const { status, search = '', limit = 25 } = req.query
     const numericLimit = Math.min(parseInt(limit, 10) || 25, 100)
