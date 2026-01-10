@@ -9,7 +9,7 @@ Frontend: https://eco-track-peach.vercel.app
 - Firebase ID token verification for user endpoints
 - CRUD for challenges, events, and tips
 - User profiles, stats, and activity history
-- Admin login with cookie-based JWT and moderation tools
+- Admin access with Firebase custom claims and moderation tools
 - Validation, rate limiting, and security headers
 
 ## Tech stack
@@ -56,7 +56,7 @@ Protected endpoints expect a Firebase ID token:
 Authorization: Bearer <firebase_id_token>
 ```
 
-Admin endpoints use an `admin_token` httpOnly cookie set by `/api/admin/login`.
+Admin endpoints require a Firebase ID token with a custom claim of `admin: true` (or `role: "admin"`).
 
 ## Utility scripts
 - `node scripts/initChallengeIndexes.js`

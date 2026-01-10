@@ -287,22 +287,18 @@ app.get('/api', (req, res) => {
         baseRoute: '/api/admin',
         endpoints: [
           {
-            method: 'POST',
-            path: '/api/admin/login',
-            description: 'Authenticate into the admin control panel',
-            access: 'Public (admin credentials required)'
-          },
-          {
             method: 'GET',
             path: '/api/admin/dashboard',
             description: 'Get admin dashboard metrics',
-            access: 'Private (requires admin token)'
+            access: 'Private (requires Firebase admin claim)',
+            headers: { Authorization: 'Bearer <firebase_token>' }
           },
           {
             method: 'PUT',
             path: '/api/admin/content',
             description: 'Update marketing content (testimonials, how it works, footer)',
-            access: 'Private (requires admin token)'
+            access: 'Private (requires Firebase admin claim)',
+            headers: { Authorization: 'Bearer <firebase_token>' }
           }
         ]
       },
@@ -507,7 +503,7 @@ app.get('/api', (req, res) => {
     },
 
     notes: [
-      'Admin routes require custom claims: { role: "admin" }',
+      'Admin routes require custom claims: { admin: true } or { role: "admin" }',
       'All POST/PATCH/DELETE requests should include Content-Type: application/json header',
       'Rate limiting is more relaxed in development mode',
       'API responses follow a consistent format with success/error indicators'

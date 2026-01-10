@@ -1,6 +1,29 @@
 // Firebase Authentication Middleware
 const { verifyIdToken, getUserByUid } = require('../config/firebase');
 
+function extractCustomClaims(decodedToken) {
+  if (decodedToken.customClaims) return decodedToken.customClaims
+
+  const {
+    aud,
+    auth_time,
+    exp,
+    firebase,
+    iat,
+    iss,
+    sub,
+    uid,
+    email,
+    email_verified,
+    name,
+    picture,
+    phone_number,
+    ...rest
+  } = decodedToken
+
+  return rest
+}
+
 /**
  * Middleware to authenticate Firebase ID tokens
  * Adds user info to req.user if token is valid
@@ -25,13 +48,15 @@ const authenticateFirebaseToken = async (req, res, next) => {
     const userRecord = await getUserByUid(decodedToken.uid);
     
     // Add user info to request object
+    const customClaims = extractCustomClaims(decodedToken)
+
     req.user = {
       uid: decodedToken.uid,
       email: decodedToken.email,
       emailVerified: decodedToken.email_verified,
       displayName: userRecord.displayName || decodedToken.name || 'Anonymous User',
       photoURL: userRecord.photoURL || decodedToken.picture || null,
-      customClaims: decodedToken.customClaims || {}
+      customClaims
     };
     
     next();
@@ -63,13 +88,15 @@ const optionalFirebaseAuth = async (req, res, next) => {
     // Get full user record to access profile information
     const userRecord = await getUserByUid(decodedToken.uid);
     
+    const customClaims = extractCustomClaims(decodedToken)
+
     req.user = {
       uid: decodedToken.uid,
       email: decodedToken.email,
       emailVerified: decodedToken.email_verified,
       displayName: userRecord.displayName || decodedToken.name || 'Anonymous User',
       photoURL: userRecord.photoURL || decodedToken.picture || null,
-      customClaims: decodedToken.customClaims || {}
+      customClaims
     };
     
     next();
@@ -92,11 +119,21 @@ const requireAdmin = (req, res, next) => {
     });
   }
   
-  if (!req.user.customClaims || !req.user.customClaims.admin) {
+  const claims = req.user.customClaims || {}
+  const isAdmin = claims.admin === true || claims.role === 'admin'
+
+  if (!isAdmin) {
     return res.status(403).json({
       success: false,
       error: { message: 'Admin access required' }
     });
+  }
+
+  req.admin = {
+    uid: req.user.uid,
+    email: req.user.email,
+    name: req.user.displayName || req.user.email?.split('@')[0] || 'Admin',
+    role: claims.role || 'admin'
   }
   
   next();

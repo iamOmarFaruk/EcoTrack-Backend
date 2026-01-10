@@ -1,7 +1,6 @@
 const express = require('express')
 const router = express.Router()
 const resetController = require('../controllers/resetController')
-const { adminAuth } = require('../middleware/adminAuth')
 
 /**
  * Demo Reset Routes
@@ -11,15 +10,15 @@ const { adminAuth } = require('../middleware/adminAuth')
  */
 
 // GET /api/admin/reset/status - Get timer status and snapshot info
-router.get('/status', adminAuth, resetController.getStatus)
+router.get('/status', resetController.getStatus)
 
 // POST /api/admin/reset/execute - Manually trigger reset (demo admin only)
-router.post('/execute', adminAuth, resetController.executeReset)
+router.post('/execute', resetController.executeReset)
 
 // POST /api/admin/reset/snapshot - Create new baseline snapshot (demo admin only)
-router.post('/snapshot', adminAuth, resetController.createSnapshot)
+router.post('/snapshot', resetController.createSnapshot)
 
 // DELETE /api/admin/reset/timer - Cancel pending timer (demo admin only)
-router.delete('/timer', adminAuth, resetController.cancelTimer)
+router.delete('/timer', resetController.cancelTimer)
 
 module.exports = router
