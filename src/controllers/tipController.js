@@ -1,4 +1,5 @@
 const TipModel = require('../models/tipModel');
+const { userDb } = require('../models/userModel');
 
 /**
  * Tips Controller
@@ -17,8 +18,10 @@ exports.getAllTips = async (req, res, next) => {
       limit = 20,
       sortBy = 'createdAt',
       order = 'desc',
-      search,
-      authorId
+      authorId,
+      category,
+      status = 'published',
+      search
     } = req.query;
 
     // Validate and sanitize pagination
@@ -32,13 +35,17 @@ exports.getAllTips = async (req, res, next) => {
     // Validate order
     const validOrder = ['asc', 'desc'].includes(order) ? order : 'desc';
 
+    const inactiveUserIds = await userDb.getInactiveUserIds();
     const result = await TipModel.find({}, {
       page: validPage,
       limit: validLimit,
       sortBy: validSortBy,
       order: validOrder,
       search,
-      authorId
+      authorId,
+      category,
+      status,
+      excludeAuthorIds: inactiveUserIds
     });
 
     res.status(200).json({
@@ -62,7 +69,7 @@ exports.getAllTips = async (req, res, next) => {
  */
 exports.createTip = async (req, res, next) => {
   try {
-    const { title, content } = req.body;
+    const { title, content, category, status } = req.body;
 
     // Validate input
     const validation = TipModel.validateTip({ title, content });
@@ -78,9 +85,11 @@ exports.createTip = async (req, res, next) => {
     const authorData = {
       title,
       content,
+      category: category || 'General',
       authorId: req.user.uid,
       authorName: req.user.displayName || req.user.email?.split('@')[0] || 'Anonymous',
-      authorImage: req.user.photoURL || null
+      authorImage: req.user.photoURL || null,
+      status: status || 'published'
     };
 
     // Create tip
@@ -93,7 +102,7 @@ exports.createTip = async (req, res, next) => {
     });
   } catch (error) {
     console.error('Error creating tip:', error);
-    
+
     // Handle duplicate key error
     if (error.code === 11000) {
       return res.status(409).json({
@@ -124,6 +133,8 @@ exports.updateTip = async (req, res, next) => {
     const updateData = {};
     if (title !== undefined) updateData.title = title;
     if (content !== undefined) updateData.content = content;
+    if (req.body.category !== undefined) updateData.category = req.body.category;
+    if (req.body.status !== undefined) updateData.status = req.body.status;
 
     // Check if there's anything to update
     if (Object.keys(updateData).length === 0) {
@@ -264,7 +275,9 @@ exports.getMyTips = async (req, res, next) => {
       page = 1,
       limit = 20,
       sortBy = 'createdAt',
-      order = 'desc'
+      order = 'desc',
+      status,
+      search
     } = req.query;
 
     // Validate and sanitize pagination
@@ -283,7 +296,9 @@ exports.getMyTips = async (req, res, next) => {
       limit: validLimit,
       sortBy: validSortBy,
       order: validOrder,
-      authorId: req.user.uid // Filter by current user
+      authorId: req.user.uid, // Filter by current user
+      status, // Optional status filter
+      search
     });
 
     res.status(200).json({
@@ -316,7 +331,8 @@ exports.getTrendingTips = async (req, res, next) => {
     const validDays = Math.min(30, Math.max(1, parseInt(days)));
     const validLimit = Math.min(50, Math.max(1, parseInt(limit)));
 
-    const tips = await TipModel.getTrending(validDays, validLimit);
+    const inactiveUserIds = await userDb.getInactiveUserIds();
+    const tips = await TipModel.getTrending(validDays, validLimit, { excludeAuthorIds: inactiveUserIds });
 
     res.status(200).json({
       success: true,

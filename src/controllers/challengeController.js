@@ -14,6 +14,7 @@ const {
   isTitleUnique,
   getCommunityImpactTotals,
 } = require("../models/challengeModel");
+const { userDb } = require('../models/userModel');
 
 /**
  * Validate challenge data
@@ -170,11 +171,11 @@ function validateChallengeData(data, isUpdate = false) {
     errors.push("Featured must be a boolean");
   }
 
-  // Status validation (for updates)
-  if (isUpdate && data.status !== undefined) {
-    const validStatuses = ["active", "completed", "cancelled"];
+  // Status validation (for updates and creation)
+  if (data.status !== undefined) {
+    const validStatuses = ["draft", "active", "completed", "cancelled"];
     if (!validStatuses.includes(data.status)) {
-      errors.push("Status must be one of: active, completed, cancelled");
+      errors.push("Status must be one of: draft, active, completed, cancelled");
     }
   }
 
@@ -213,7 +214,11 @@ exports.getAllChallenges = async (req, res) => {
       order,
     };
 
-    const result = await getChallenges(filters);
+    const inactiveUserIds = await userDb.getInactiveUserIds();
+    const result = await getChallenges({
+      ...filters,
+      excludeCreatorIds: inactiveUserIds,
+    });
 
     res.json({
       success: true,
@@ -238,7 +243,10 @@ exports.getChallengeBySlug = async (req, res) => {
     const { slug } = req.params;
     const userId = req.user?.uid || null;
 
-    const challenge = await getChallengeBySlug(slug, userId);
+    const inactiveUserIds = await userDb.getInactiveUserIds();
+    const challenge = await getChallengeBySlug(slug, userId, {
+      excludeCreatorIds: inactiveUserIds,
+    });
 
     if (!challenge) {
       return res.status(404).json({

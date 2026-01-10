@@ -9,16 +9,19 @@ const tipSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   title: { type: String, required: true },
   content: { type: String, required: true },
+  category: { type: String, default: 'General' },
   authorId: { type: String, required: true },
   authorName: { type: String, required: true },
   authorImage: { type: String, default: null },
   upvoteCount: { type: Number, default: 0 },
   upvotes: { type: [upvoteSchema], default: [] },
   createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
+  updatedAt: { type: Date, default: Date.now },
+  status: { type: String, enum: ['published', 'draft'], default: 'published' }
 });
 
 tipSchema.index({ title: 'text', content: 'text' });
+tipSchema.index({ category: 1 });
 
 const Tip = mongoose.models.Tip || mongoose.model('Tip', tipSchema);
 
@@ -37,15 +40,15 @@ class TipModel {
    */
   static async createIndexes() {
     const collection = await this.getCollection();
-    
+
     await collection.createIndex({ id: 1 }, { unique: true });
     await collection.createIndex({ authorId: 1 });
     await collection.createIndex({ createdAt: -1 });
     await collection.createIndex({ upvoteCount: -1 });
     await collection.createIndex({ 'upvotes.userId': 1 });
-    await collection.createIndex({ 
-      title: 'text', 
-      content: 'text' 
+    await collection.createIndex({
+      title: 'text',
+      content: 'text'
     });
 
     console.log('Tips collection indexes created successfully');
@@ -101,14 +104,16 @@ class TipModel {
    */
   static async create(tipData) {
     const collection = await this.getCollection();
-    
+
     const tip = await collection.create({
       id: this.generateTipId(),
       title: tipData.title.trim(),
       content: tipData.content.trim(),
+      category: tipData.category || 'General',
       authorId: tipData.authorId,
       authorName: tipData.authorName,
       authorImage: tipData.authorImage || null,
+      status: tipData.status || 'published',
       upvoteCount: 0,
       upvotes: []
     });
@@ -121,25 +126,78 @@ class TipModel {
    */
   static async find(filters = {}, options = {}) {
     const collection = await this.getCollection();
-    
+
     const {
       page = 1,
       limit = 20,
       sortBy = 'createdAt',
       order = 'desc',
       search,
-      authorId
+      authorId,
+      category,
+      status,
+      excludeAuthorIds
     } = options;
 
     // Build query
     const query = {};
-    
+    const filters_list = [];
+
     if (search) {
       query.$text = { $search: search };
     }
-    
+
+    const excludedAuthors = Array.isArray(excludeAuthorIds) ? excludeAuthorIds.filter(Boolean) : [];
+
     if (authorId) {
+      if (excludedAuthors.includes(authorId)) {
+        return {
+          tips: [],
+          pagination: {
+            page,
+            limit,
+            total: 0,
+            pages: 0
+          }
+        };
+      }
       query.authorId = authorId;
+    } else if (excludedAuthors.length > 0) {
+      query.authorId = { $nin: excludedAuthors };
+    }
+
+    if (category && category !== 'All') {
+      if (category === 'General') {
+        filters_list.push({
+          $or: [
+            { category: 'General' },
+            { category: { $exists: false } },
+            { category: null },
+            { category: '' }
+          ]
+        });
+      } else {
+        query.category = category;
+      }
+    }
+
+    if (status) {
+      if (status === 'published') {
+        // For published tips, also include those without a status field (old records)
+        filters_list.push({
+          $or: [
+            { status: 'published' },
+            { status: { $exists: false } },
+            { status: null }
+          ]
+        });
+      } else {
+        query.status = status;
+      }
+    }
+
+    if (filters_list.length > 0) {
+      query.$and = filters_list;
     }
 
     // Build sort
@@ -177,10 +235,10 @@ class TipModel {
    */
   static async findById(id, includeUpvotes = false) {
     const collection = await this.getCollection();
-    
+
     const projection = includeUpvotes ? {} : '-upvotes';
     const tip = await collection.findOne({ id }).select(projection).lean();
-    
+
     return tip ? this.computeFields(tip) : null;
   }
 
@@ -189,13 +247,13 @@ class TipModel {
    */
   static async update(id, updateData, userId) {
     const collection = await this.getCollection();
-    
+
     // Check if user is the author
     const tip = await collection.findOne({ id }).lean();
     if (!tip) {
       return { success: false, error: 'Tip not found' };
     }
-    
+
     if (tip.authorId !== userId) {
       return { success: false, error: 'You are not authorized to update this tip' };
     }
@@ -215,6 +273,14 @@ class TipModel {
       update.$set.content = updateData.content.trim();
     }
 
+    if (updateData.category !== undefined) {
+      update.$set.category = updateData.category;
+    }
+
+    if (updateData.status !== undefined) {
+      update.$set.status = updateData.status;
+    }
+
     const updated = await collection.findOneAndUpdate(
       { id },
       update,
@@ -232,19 +298,19 @@ class TipModel {
    */
   static async delete(id, userId) {
     const collection = await this.getCollection();
-    
+
     // Check if user is the author
     const tip = await collection.findOne({ id }).lean();
     if (!tip) {
       return { success: false, error: 'Tip not found' };
     }
-    
+
     if (tip.authorId !== userId) {
       return { success: false, error: 'You are not authorized to delete this tip' };
     }
 
     await collection.deleteOne({ id });
-    
+
     return { success: true };
   }
 
@@ -253,10 +319,10 @@ class TipModel {
    */
   static async upvote(id, userId) {
     const collection = await this.getCollection();
-    
+
     // First, get the tip to check various conditions
     const tip = await collection.findOne({ id }).lean();
-    
+
     if (!tip) {
       return { success: false, error: 'Tip not found', code: 'NOT_FOUND' };
     }
@@ -266,8 +332,8 @@ class TipModel {
 
     // Check if user is trying to upvote their own tip
     if (tip.authorId === userId) {
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: 'You cannot upvote your own tip',
         code: 'SELF_UPVOTE'
       };
@@ -310,16 +376,23 @@ class TipModel {
   /**
    * Get trending tips (most upvoted recently)
    */
-  static async getTrending(days = 7, limit = 10) {
+  static async getTrending(days = 7, limit = 10, options = {}) {
     const collection = await this.getCollection();
-    
+    const excludeAuthorIds = Array.isArray(options.excludeAuthorIds) ? options.excludeAuthorIds.filter(Boolean) : [];
+
     const daysAgo = new Date();
     daysAgo.setDate(daysAgo.getDate() - days);
 
+    const query = {
+      createdAt: { $gte: daysAgo }
+    };
+
+    if (excludeAuthorIds.length > 0) {
+      query.authorId = { $nin: excludeAuthorIds };
+    }
+
     const tips = await collection
-      .find({
-        createdAt: { $gte: daysAgo }
-      })
+      .find(query)
       .select('-upvotes')
       .sort({ upvoteCount: -1 })
       .limit(limit)
@@ -328,11 +401,41 @@ class TipModel {
     return tips.map(tip => this.computeFields(tip));
   }
 
+  static async removeUpvotesByUser(userId) {
+    const collection = await this.getCollection();
+
+    return collection.updateMany(
+      { 'upvotes.userId': userId },
+      [
+        {
+          $set: {
+            upvotes: {
+              $filter: {
+                input: '$upvotes',
+                as: 'vote',
+                cond: { $ne: ['$$vote.userId', userId] }
+              }
+            }
+          }
+        },
+        {
+          $set: {
+            upvoteCount: { $size: '$upvotes' }
+          }
+        }
+      ]
+    );
+  }
+
   /**
    * Compute additional fields
    */
   static computeFields(tip, userId = null) {
     if (!tip) return null;
+
+    // Ensure status and category exist (especially for old records)
+    tip.status = tip.status || 'published';
+    tip.category = tip.category || 'General';
 
     // Normalize dates to avoid crashes if stored as strings or missing
     const createdAt = tip.createdAt instanceof Date
