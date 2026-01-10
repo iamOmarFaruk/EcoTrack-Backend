@@ -127,6 +127,12 @@ class SnapshotService {
           // Remove _id fields to avoid duplicate key errors if schema changed
           const cleanData = snapshotData.map(doc => {
             const { __v, ...rest } = doc
+
+            // Fix missing category for events (schema evolution)
+            if (collectionName === 'events' && !rest.category) {
+              rest.category = 'Community'
+            }
+
             return rest
           })
 
@@ -160,7 +166,7 @@ class SnapshotService {
    * @returns {Promise<Object>} The existing or newly created snapshot
    */
   async ensureInitialSnapshot() {
-    const existing = await DemoSnapshot.findOne({ type: 'initial' })
+    const existing = await DemoSnapshot.findOne({ type: 'initial' }).sort({ createdAt: -1 })
 
     if (!existing) {
       console.log('[Demo Reset] No initial snapshot found, creating one...')
