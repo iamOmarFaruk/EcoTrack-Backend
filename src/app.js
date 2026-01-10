@@ -13,10 +13,10 @@ const database = require('./config/database');
 const { initializeFirebase } = require('./config/firebase');
 
 // Import security middleware
-const { 
-  sanitizeInput, 
-  requestSizeLimit, 
-  securityHeaders 
+const {
+  sanitizeInput,
+  requestSizeLimit,
+  securityHeaders
 } = require('./middleware/security');
 
 // Import routes
@@ -32,6 +32,9 @@ const siteRoutes = require('./routes/site');
 const errorHandler = require('./middleware/errorHandler');
 const { notFound } = require('./middleware/notFound');
 
+// Import reset timer service for demo reset functionality
+const resetTimerService = require('./services/resetTimerService');
+
 const app = express();
 
 // Initialize database connection
@@ -39,6 +42,9 @@ const app = express();
   try {
     await database.connect();
     console.log('🌱 Database connection established');
+
+    // Initialize demo reset timer service after database is ready
+    await resetTimerService.initialize();
   } catch (error) {
     console.error('❌ Database connection failed:', error.message);
     process.exit(1);

@@ -3,6 +3,8 @@ const rateLimit = require('express-rate-limit')
 const router = express.Router()
 const adminController = require('../controllers/adminController')
 const { adminAuth } = require('../middleware/adminAuth')
+const demoTrackMiddleware = require('../middleware/demoTrackMiddleware')
+const resetRoutes = require('./reset')
 
 // Strict rate limiting for admin login (5 attempts per 15 minutes)
 const adminLoginLimiter = rateLimit({
@@ -36,6 +38,12 @@ router.post('/logout', adminAuth, adminController.logout)
 
 // Apply general rate limiting to all other admin routes
 router.use(adminOperationsLimiter)
+
+// Apply demo tracking middleware to track mutations by demo admin
+router.use(demoTrackMiddleware)
+
+// Demo reset routes (mounted at /api/admin/reset)
+router.use('/reset', resetRoutes)
 
 // Dashboard data
 router.get('/dashboard', adminAuth, adminController.dashboard)
