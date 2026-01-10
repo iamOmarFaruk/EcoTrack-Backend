@@ -5,6 +5,7 @@ const { logActivity, listActivity, clearActivity, deleteActivity } = require('..
 const TipModel = require('../models/tipModel')
 const { userDb } = require('../models/userModel')
 const { mongoose } = require('../config/mongoose')
+const validator = require('validator')
 
 // Ensure models are registered
 require('../models/challengeModel')
@@ -16,6 +17,21 @@ const Challenge = mongoose.model('Challenge')
 const Event = mongoose.model('Event')
 const Tip = mongoose.model('Tip')
 const User = mongoose.model('User')
+
+/**
+ * Sanitize search input to prevent NoSQL injection
+ * @param {string} search - The search string
+ * @returns {string} - Sanitized search string
+ */
+function sanitizeSearchInput(search) {
+  if (!search || typeof search !== 'string') return ''
+
+  // Remove MongoDB operators
+  const sanitized = search.replace(/[${}]/g, '')
+
+  // Escape HTML entities and trim
+  return validator.escape(sanitized).trim()
+}
 
 class AdminController {
   async login(req, res) {
@@ -30,9 +46,11 @@ class AdminController {
     }
 
     const isEmailMatch = safeCompare(email.toLowerCase(), adminConfig.email.toLowerCase())
-    const isPasswordValid = verifyPassword(password)
+    const isPasswordValid = await verifyPassword(password)
 
     if (!isEmailMatch || !isPasswordValid) {
+      // Add delay to prevent timing attacks
+      await new Promise(resolve => setTimeout(resolve, 1000))
       return res.status(401).json({
         success: false,
         error: { message: 'Invalid admin credentials' }
@@ -53,16 +71,48 @@ class AdminController {
       performedBy: adminConfig.email
     })
 
+    // Set httpOnly cookie for secure token storage
+    res.cookie('admin_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: adminConfig.tokenExpiryHours * 60 * 60 * 1000,
+      path: '/',
+      domain: process.env.COOKIE_DOMAIN
+    })
+
     return res.json({
       success: true,
       data: {
-        token,
+        // DO NOT send token in response body (it's in httpOnly cookie)
         admin: {
           email: adminConfig.email,
           name: adminConfig.name
         },
         expiresInHours: adminConfig.tokenExpiryHours
       }
+    })
+  }
+
+  async logout(req, res) {
+    res.clearCookie('admin_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/'
+    })
+
+    await logActivity({
+      action: 'logout',
+      entity: 'admin',
+      entityId: req.admin.email,
+      detail: 'Admin logged out',
+      performedBy: req.admin.email
+    })
+
+    return res.json({
+      success: true,
+      message: 'Logged out successfully'
     })
   }
 
@@ -173,10 +223,15 @@ class AdminController {
 
     const query = {}
     if (search) {
-      query.$or = [
-        { email: { $regex: search, $options: 'i' } },
-        { displayName: { $regex: search, $options: 'i' } }
-      ]
+      const sanitizedSearch = sanitizeSearchInput(search)
+      if (sanitizedSearch) {
+        // Escape regex special characters
+        const escapedSearch = sanitizedSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        query.$or = [
+          { email: { $regex: escapedSearch, $options: 'i' } },
+          { displayName: { $regex: escapedSearch, $options: 'i' } }
+        ]
+      }
     }
 
     const [users, total] = await Promise.all([
@@ -248,10 +303,14 @@ class AdminController {
     const query = {}
     if (status) query.status = status
     if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { category: { $regex: search, $options: 'i' } }
-      ]
+      const sanitizedSearch = sanitizeSearchInput(search)
+      if (sanitizedSearch) {
+        const escapedSearch = sanitizedSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        query.$or = [
+          { title: { $regex: escapedSearch, $options: 'i' } },
+          { category: { $regex: escapedSearch, $options: 'i' } }
+        ]
+      }
     }
 
     const challenges = await Challenge.find(query)
@@ -445,10 +504,14 @@ class AdminController {
     const query = {}
     if (status) query.status = status
     if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { location: { $regex: search, $options: 'i' } }
-      ]
+      const sanitizedSearch = sanitizeSearchInput(search)
+      if (sanitizedSearch) {
+        const escapedSearch = sanitizedSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        query.$or = [
+          { title: { $regex: escapedSearch, $options: 'i' } },
+          { location: { $regex: escapedSearch, $options: 'i' } }
+        ]
+      }
     }
 
     const events = await Event.find(query)
@@ -625,10 +688,14 @@ class AdminController {
     const query = {}
     if (status) query.status = status
     if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { content: { $regex: search, $options: 'i' } }
-      ]
+      const sanitizedSearch = sanitizeSearchInput(search)
+      if (sanitizedSearch) {
+        const escapedSearch = sanitizedSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        query.$or = [
+          { title: { $regex: escapedSearch, $options: 'i' } },
+          { content: { $regex: escapedSearch, $options: 'i' } }
+        ]
+      }
     }
 
     const tips = await Tip.find(query)

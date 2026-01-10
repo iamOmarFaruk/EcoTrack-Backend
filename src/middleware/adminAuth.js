@@ -47,8 +47,8 @@ function verifyAdminToken(token) {
 }
 
 function adminAuth(req, res, next) {
-  const authHeader = req.headers.authorization || ''
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+  // Read token from httpOnly cookie
+  const token = req.cookies.admin_token
 
   if (!token) {
     return res.status(401).json({
@@ -62,6 +62,8 @@ function adminAuth(req, res, next) {
     req.admin = payload
     return next()
   } catch (error) {
+    // Clear invalid cookie
+    res.clearCookie('admin_token')
     return res.status(401).json({
       success: false,
       error: { message: error.message || 'Invalid admin token' }

@@ -1,4 +1,7 @@
 const crypto = require('crypto')
+const bcrypt = require('bcrypt')
+
+const SALT_ROUNDS = 12
 
 const DEFAULT_ADMIN = {
   email: process.env.ADMIN_EMAIL || 'admin@ecotrack.com',
@@ -22,16 +25,32 @@ function safeCompare(a, b) {
 }
 
 /**
- * Verify an admin password using either a SHA-256 hash or plain text fallback
+ * Verify an admin password using bcrypt
+ * @param {string} inputPassword - The password to verify
+ * @returns {Promise<boolean>} - Whether the password is correct
  */
-function verifyPassword(inputPassword) {
+async function verifyPassword(inputPassword) {
   const hashedEnvPassword = process.env.ADMIN_PASSWORD_HASH
-  if (hashedEnvPassword) {
-    const hash = crypto.createHash('sha256').update(inputPassword).digest('hex')
-    return safeCompare(hash, hashedEnvPassword)
+
+  if (!hashedEnvPassword) {
+    throw new Error('Admin password not configured. Please set ADMIN_PASSWORD_HASH in environment variables.')
   }
 
-  return safeCompare(inputPassword, DEFAULT_ADMIN.password)
+  try {
+    return await bcrypt.compare(inputPassword, hashedEnvPassword)
+  } catch (error) {
+    console.error('Password verification error:', error)
+    return false
+  }
+}
+
+/**
+ * Hash a password using bcrypt (for generating ADMIN_PASSWORD_HASH)
+ * @param {string} plainPassword - The password to hash
+ * @returns {Promise<string>} - The hashed password
+ */
+async function hashPassword(plainPassword) {
+  return await bcrypt.hash(plainPassword, SALT_ROUNDS)
 }
 
 /**
@@ -49,5 +68,6 @@ function getAdminConfig() {
 module.exports = {
   getAdminConfig,
   verifyPassword,
+  hashPassword,
   safeCompare
 }

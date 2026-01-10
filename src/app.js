@@ -3,6 +3,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const cookieParser = require('cookie-parser');
+const mongoSanitize = require('express-mongo-sanitize');
 
 // Import database connection (Mongoose-based)
 const database = require('./config/database');
@@ -70,42 +72,49 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// CORS configuration - relaxed for development
+// CORS configuration - strict for all environments
 const allowedOrigins = [
-  process.env.FRONTEND_URL || 'http://localhost:3000',
-  'https://eco-track-peach.vercel.app',
-  'http://localhost:3001', // Allow server requests
-  'http://localhost:5173', // Vite dev server
-  'http://127.0.0.1:3000',
-  'http://127.0.0.1:3001',
-];
+  process.env.FRONTEND_URL,
+  process.env.FRONTEND_PRODUCTION_URL,
+  'https://eco-track-peach.vercel.app'
+].filter(Boolean); // Remove undefined values
 
+// Development additional origins
 if (process.env.NODE_ENV === 'development') {
-  // Allow all localhost origins in development
-  app.use(cors({
-    origin: true, // Allow all origins in development
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    maxAge: 86400
-  }));
-} else {
-  app.use(cors({
-    origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    maxAge: 86400
-  }));
+  allowedOrigins.push(
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:3000'
+  );
 }
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Block requests with no origin in production
+    if (!origin && process.env.NODE_ENV === 'production') {
+      return callback(new Error('Origin required'), false);
+    }
+
+    // Allow same-origin requests (no Origin header)
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    // Check against allowlist
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`🚫 CORS blocked request from: ${origin}`);
+      callback(new Error(`Origin ${origin} not allowed by CORS`), false);
+    }
+  },
+  credentials: true, // Required for httpOnly cookies
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining'],
+  maxAge: 86400
+}));
 
 // Rate limiting with environment-specific configuration
 const windowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000; // 15 minutes
@@ -132,15 +141,26 @@ app.use(securityHeaders);
 app.use(requestSizeLimit);
 
 // Body parsing middleware with enhanced security
-app.use(express.json({ 
+app.use(express.json({
   limit: '10mb',
   strict: true,
   type: 'application/json'
 }));
-app.use(express.urlencoded({ 
-  extended: true, 
+app.use(express.urlencoded({
+  extended: true,
   limit: '10mb',
-  parameterLimit: 100 
+  parameterLimit: 100
+}));
+
+// Cookie parsing for httpOnly cookie authentication
+app.use(cookieParser());
+
+// NoSQL injection prevention
+app.use(mongoSanitize({
+  replaceWith: '_',
+  onSanitize: ({ req, key }) => {
+    console.warn(`⚠️ NoSQL injection attempt detected in ${req.path}: ${key}`);
+  }
 }));
 
 // Input sanitization

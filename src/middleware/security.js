@@ -3,19 +3,34 @@
  * Essential security measures for the EcoTrack API
  */
 
+const createDOMPurify = require('dompurify');
+const { JSDOM } = require('jsdom');
+
+const window = new JSDOM('').window;
+const DOMPurify = createDOMPurify(window);
+
 /**
- * Sanitize input data to prevent injection attacks
+ * Sanitize input data to prevent XSS and injection attacks
  */
 const sanitizeInput = (req, res, next) => {
   const sanitize = (obj) => {
-    if (typeof obj !== 'object' || obj === null) return obj;
-    
+    if (typeof obj !== 'object' || obj === null) {
+      if (typeof obj === 'string') {
+        // Use DOMPurify for HTML sanitization
+        return DOMPurify.sanitize(obj, {
+          ALLOWED_TAGS: [], // Strip all HTML tags
+          ALLOWED_ATTR: []
+        });
+      }
+      return obj;
+    }
+
     for (let key in obj) {
       if (typeof obj[key] === 'string') {
-        // Remove potential script tags
-        obj[key] = obj[key]
-          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-          .replace(/javascript:/gi, '');
+        obj[key] = DOMPurify.sanitize(obj[key], {
+          ALLOWED_TAGS: [], // No HTML allowed in API inputs
+          ALLOWED_ATTR: []
+        });
       } else if (typeof obj[key] === 'object') {
         obj[key] = sanitize(obj[key]);
       }
@@ -26,7 +41,7 @@ const sanitizeInput = (req, res, next) => {
   if (req.body) req.body = sanitize(req.body);
   if (req.query) req.query = sanitize(req.query);
   if (req.params) req.params = sanitize(req.params);
-  
+
   next();
 };
 
@@ -50,17 +65,23 @@ const requestSizeLimit = (req, res, next) => {
 };
 
 /**
- * Security headers middleware
+ * Enhanced security headers middleware
  */
 const securityHeaders = (req, res, next) => {
   // Remove server signature
   res.removeHeader('X-Powered-By');
-  
-  // Basic security headers
+
+  // Security headers
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  
+
+  // HSTS (only in production)
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  }
+
   next();
 };
 

@@ -1,11 +1,41 @@
 const express = require('express')
+const rateLimit = require('express-rate-limit')
 const router = express.Router()
 const adminController = require('../controllers/adminController')
 const { adminAuth } = require('../middleware/adminAuth')
 
-// Admin authentication
-router.post('/login', adminController.login)
+// Strict rate limiting for admin login (5 attempts per 15 minutes)
+const adminLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false, // Count all attempts
+  message: {
+    success: false,
+    error: { message: 'Too many login attempts. Please try again in 15 minutes.' }
+  }
+})
+
+// General admin operations rate limiting (100 per 15 minutes)
+const adminOperationsLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: { message: 'Too many requests. Please slow down.' }
+  }
+})
+
+// Admin authentication with strict rate limiting
+router.post('/login', adminLoginLimiter, adminController.login)
 router.get('/me', adminAuth, adminController.me)
+router.post('/logout', adminAuth, adminController.logout)
+
+// Apply general rate limiting to all other admin routes
+router.use(adminOperationsLimiter)
 
 // Dashboard data
 router.get('/dashboard', adminAuth, adminController.dashboard)
